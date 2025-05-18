@@ -24,6 +24,12 @@ import {
 
 
 
+
+
+
+
+
+
     StyleSheet,
     Text,
     TouchableOpacity,
@@ -135,6 +141,7 @@ export default function HomeScreen() {
     const [completedDoses, setCompletedDoses] = useState(0);
     const [doseHistory, setDoseHistory] = useState<DoseHistory[]>([]);
     const [medications, setMedications] = useState<Medication[]>([]);
+    const [showNotifications, setShowNotifications] = useState(false);
 
     const loadMedications = useCallback(async () =>{
         try {
@@ -242,7 +249,9 @@ export default function HomeScreen() {
                             <Text style={styles.greeting}> Daily Progress</Text>
                         </View>
 
-                        <TouchableOpacity style={styles.notificationButton}>
+                        <TouchableOpacity style={styles.notificationButton}
+                            onPress={() => setShowNotifications(true)}
+                        >
                             <Ionicons
                                 name="notifications-outline" 
                                 size={24} 
@@ -346,26 +355,29 @@ export default function HomeScreen() {
                 )}
             </View>
 
-            <Modal visible={false} transparent={true} animationType="slide">
+            <Modal visible={false} transparent={true} animationType="slide"
+                onRequestClose={() => setShowNotifications(false)}
+            >
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
                         <Text style={styles.modalTitle}>
                             Notification
                         </Text>
-                        <TouchableOpacity style={styles.closeButton}>
+                        <TouchableOpacity style={styles.closeButton}
+                        onPress={()=> setShowNotifications(false)}>
                             <Ionicons name="close" size={24} color="#333" />
                             
                         </TouchableOpacity>
                     </View>
-                    {[].map((medication)=> (
+                    {todaysMedications.map((medication)=> (
                         <View style={styles.notificationIcon}>
                             <View style={styles.notificationIcon}>
                                 <Ionicons name="medical" size={24} />
                             </View>
                             <View style={styles.notificationContent}>
-                                <Text style={styles.notificationTitle}>medciation name</Text>
-                                <Text style={styles.notificationMessage}>medciation dosage</Text>
-                                <Text style={styles.notificationTime}>medciation time</Text>
+                                <Text style={styles.notificationTitle}>{medication.name}</Text>
+                                <Text style={styles.notificationMessage}>{medication.dosage}</Text>
+                                <Text style={styles.notificationTime}>{medication.times[0]}</Text>
                             </View>
                             </View>
                     ))}
