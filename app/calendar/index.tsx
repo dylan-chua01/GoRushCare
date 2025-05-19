@@ -60,6 +60,7 @@ export default function CalendarScreen() {
             );
             
             const isToday = new Date().toDateString() === date.toDateString();
+            const isSelected = selectedDate.toDateString() === date.toDateString();
             const hasDoses = doseHistory.some(
                 (dose: DoseHistory) => new Date(dose.timestamp).toDateString() === date.toDateString()
             );
@@ -70,11 +71,18 @@ export default function CalendarScreen() {
                     style={[
                         styles.calendarDay,
                         isToday && styles.today,
+                        isSelected && styles.selectedDay,
                         hasDoses && styles.hasEvents,
                     ]}
                     onPress={() => setSelectedDate(date)}
                 >
-                    <Text style={[styles.dayText, isToday && styles.todayText]}>{day}</Text>
+                    <Text style={[
+                        styles.dayText, 
+                        isToday && styles.todayText,
+                        isSelected && styles.selectedDayText
+                    ]}>
+                        {day}
+                    </Text>
                     {hasDoses && <View style={styles.eventDot} />}
                 </TouchableOpacity>
             );
@@ -93,7 +101,7 @@ export default function CalendarScreen() {
         return calendar;
     };
 
-    const renderMedicationsforDate = () => {
+    const renderMedicationsForDate = () => {
         const dateStr = selectedDate.toDateString();
         const dayDose = doseHistory.filter(
             (dose: DoseHistory) => new Date(dose.timestamp).toDateString() === dateStr
@@ -108,14 +116,38 @@ export default function CalendarScreen() {
             );
         }
 
-        return medications.map((medication) => {
+        // Filter medications that should be active on the selected date
+        const activeMeds = medications.filter(med => {
+            const startDate = new Date(med.startDate);
+            const durationDays = med.duration === "Ongoing" ? Infinity : parseInt(med.duration.split(" ")[0]);
+            const endDate = new Date(startDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
+            
+            return selectedDate >= startDate && selectedDate <= endDate;
+        });
+
+        if (activeMeds.length === 0) {
+            return (
+                <View style={styles.emptyState}>
+                    <Ionicons name="medical-outline" size={48} color="#ccc" />
+                    <Text style={styles.emptyStateText}>No medications scheduled for this day</Text>
+                </View>
+            );
+        }
+
+        return activeMeds.map((medication) => {
             const taken = dayDose.some(
                 (dose: DoseHistory) => dose.medicationId === medication.id && dose.taken
             );
             
-            // Get times for this medication
-            const times = medication.times ? medication.times.join(", ") : "No time set";
-            
+            // Format times for display
+            const times = medication.times.map(time => {
+                const [hours, minutes] = time.split(':');
+                const hourNum = parseInt(hours);
+                const period = hourNum >= 12 ? 'PM' : 'AM';
+                const displayHour = hourNum % 12 || 12;
+                return `${displayHour}:${minutes} ${period}`;
+            }).join(', ');
+
             return (
                 <View key={medication.id} style={styles.medicationCard}>
                     <View style={[
@@ -125,7 +157,10 @@ export default function CalendarScreen() {
                     <View style={styles.medicationInfo}>
                         <Text style={styles.medicationName}>{medication.name}</Text>
                         <Text style={styles.medicationDosage}>{medication.dosage}</Text>
-                        <Text style={styles.medicationTime}>{times}</Text>
+                        <View style={styles.timeContainer}>
+                            <Ionicons name="time-outline" size={16} color="#666" />
+                            <Text style={styles.medicationTime}>{times}</Text>
+                        </View>
                     </View>
 
                     {taken ? (
@@ -140,7 +175,7 @@ export default function CalendarScreen() {
                                 { backgroundColor: medication.color },
                             ]}
                             onPress={async () => {
-                                await recordDose(medication.id, true, new Date().toISOString());
+                                await recordDose(medication.id, true, selectedDate.toISOString());
                                 loadData();
                             }}
                         >
@@ -153,11 +188,16 @@ export default function CalendarScreen() {
     };
 
     const changeMonth = (increment: number) => {
-        setSelectedDate(new Date(
+        const newDate = new Date(
             selectedDate.getFullYear(),
             selectedDate.getMonth() + increment,
             1
-        ));
+        );
+        setSelectedDate(newDate);
+    };
+
+    const goToToday = () => {
+        setSelectedDate(new Date());
     };
 
     return (
@@ -177,7 +217,13 @@ export default function CalendarScreen() {
                     >
                         <Ionicons name="chevron-back" size={28} color="white" />
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Calendar</Text>
+                    <Text style={styles.headerTitle}>Medication Calendar</Text>
+                    <TouchableOpacity
+                        style={styles.todayButton}
+                        onPress={goToToday}
+                    >
+                        <Text style={styles.todayButtonText}>Today</Text>
+                    </TouchableOpacity>
                 </View>
 
                 <View style={styles.calendarContainer}>
@@ -206,15 +252,37 @@ export default function CalendarScreen() {
                 </View>
 
                 <View style={styles.scheduleContainer}>
-                    <Text style={styles.scheduleTitle}>
-                        {selectedDate.toLocaleDateString("default", {
-                            weekday: "long",
-                            month: "long",
-                            day: "numeric"
-                        })}
-                    </Text>
-                    <ScrollView style={styles.medicationList}>
-                        {renderMedicationsforDate()}
+                    <View style={styles.scheduleHeader}>
+                        <Text style={styles.scheduleTitle}>
+                            {selectedDate.toDateString() === new Date().toDateString() 
+                                ? "Today's Medications" 
+                                : selectedDate.toLocaleDateString("default", {
+                                    weekday: "long",
+                                    month: "long",
+                                    day: "numeric"
+                                })
+                            }
+                        </Text>
+                        <Text style={styles.scheduleSubtitle}>
+                            {doseHistory.filter(d => new Date(d.timestamp).toDateString() === selectedDate.toDateString() && d.taken).length} of {
+                                medications.reduce((total, med) => {
+                                    const startDate = new Date(med.startDate);
+                                    const durationDays = med.duration === "Ongoing" ? Infinity : parseInt(med.duration.split(" ")[0]);
+                                    const endDate = new Date(startDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
+                                    
+                                    if (selectedDate >= startDate && selectedDate <= endDate) {
+                                        return total + med.times.length;
+                                    }
+                                    return total;
+                                }, 0)
+                            } doses taken
+                        </Text>
+                    </View>
+                    <ScrollView 
+                        style={styles.medicationList}
+                        showsVerticalScrollIndicator={false}
+                    >
+                        {renderMedicationsForDate()}
                     </ScrollView>
                 </View>
             </View>
@@ -241,6 +309,7 @@ const styles = StyleSheet.create({
     header: {
         flexDirection: "row",
         alignItems: "center",
+        justifyContent: "space-between",
         paddingHorizontal: 24,
         paddingBottom: 16,
         zIndex: 1,
@@ -251,12 +320,22 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         justifyContent: "center",
         alignItems: "center",
-        marginRight: 10,
     },
     headerTitle: {
-        fontSize: 24,
+        fontSize: 20,
         fontWeight: "700",
         color: "white",
+    },
+    todayButton: {
+        backgroundColor: "rgba(255, 255, 255, 0.2)",
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 12,
+    },
+    todayButtonText: {
+        color: "white",
+        fontWeight: "600",
+        fontSize: 14,
     },
     calendarContainer: {
         backgroundColor: "white",
@@ -309,11 +388,16 @@ const styles = StyleSheet.create({
     },
     today: {
         backgroundColor: "#1a8e2d15",
-        borderWidth: 1,
-        borderColor: "#1a8e2d",
     },
     todayText: {
         color: "#1a8e2d",
+        fontWeight: '600'
+    },
+    selectedDay: {
+        backgroundColor: "#1a8e2d",
+    },
+    selectedDayText: {
+        color: "white",
         fontWeight: '600'
     },
     hasEvents: {
@@ -339,11 +423,18 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
         elevation: 3,
     },
+    scheduleHeader: {
+        marginBottom: 16,
+    },
     scheduleTitle: {
         fontSize: 20,
         fontWeight: "700",
         color: "#333",
-        marginBottom: 16,
+    },
+    scheduleSubtitle: {
+        fontSize: 14,
+        color: "#666",
+        marginTop: 4,
     },
     medicationList: {
         flex: 1,
@@ -381,11 +472,16 @@ const styles = StyleSheet.create({
     medicationDosage: {
         fontSize: 14,
         color: "#666",
-        marginBottom: 2,
+        marginBottom: 4,
+    },
+    timeContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
     },
     medicationTime: {
         fontSize: 14,
-        color: "#666"
+        color: "#666",
+        marginLeft: 4,
     },
     takeDoseButton: {
         paddingVertical: 8,
@@ -421,5 +517,6 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: '#999',
         marginTop: 16,
+        textAlign: 'center',
     }
 });

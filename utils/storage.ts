@@ -99,3 +99,16 @@ export async function clearAllData(): Promise<void> {
         throw error;
     }
 }
+
+// Add this to your existing storage functions
+export const deleteMedication = async (id: string): Promise<boolean> => {
+    try {
+      const existingMeds = await getMedication();
+      const updatedMeds = existingMeds.filter(med => med.id !== id);
+      await AsyncStorage.setItem('medications', JSON.stringify(updatedMeds));
+      return true;
+    } catch (error) {
+      console.error('Error deleting medication:', error);
+      return false;
+    }
+  };

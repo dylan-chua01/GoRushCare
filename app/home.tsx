@@ -1,5 +1,5 @@
 import { registerForPushNotificationsAsync, scheduleMedicationReminder } from "@/utils/notifications";
-import { DoseHistory, Medication, getMedication, getTodaysDoses, recordDose } from "@/utils/storage";
+import { DoseHistory, Medication, deleteMedication, getMedication, getTodaysDoses, recordDose } from "@/utils/storage";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Link, useFocusEffect, useRouter } from "expo-router";
@@ -10,26 +10,7 @@ import {
     AppState,
     Dimensions,
     Modal,
-    ScrollView // Add ScrollView here from react-native
-    ,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
@@ -55,20 +36,20 @@ const QUICK_ACTIONS = [
         color: "#1976d2",
         gradient: ['#2196f3', '#1976d2'] as [string, string],
     },
-    {
-        icon: "time-outline" as const,
-        label: "History\nLog",
-        route: "/history" as const,
-        color: "#c2185b",
-        gradient: ["#e91e63", "#c2185b"] as [string, string],
-    },
-    {
-        icon: "medical-outline" as const,
-        label: "Refill\nTracker",
-        route: "/refills" as const,
-        color: "#e64a19",
-        gradient: ["#ff5722", "#e64a19"] as [string, string],
-    }
+    // {
+    //     icon: "time-outline" as const,
+    //     label: "History\nLog",
+    //     route: "/history" as const,
+    //     color: "#c2185b",
+    //     gradient: ["#e91e63", "#c2185b"] as [string, string],
+    // },
+    // {
+    //     icon: "medical-outline" as const,
+    //     label: "Refill\nTracker",
+    //     route: "/refills" as const,
+    //     color: "#e64a19",
+    //     gradient: ["#ff5722", "#e64a19"] as [string, string],
+    // }
 ]
 
 interface CircularProgressProps{
@@ -104,7 +85,7 @@ function CircularProgress({
     return (
         <View style={styles.progressContainer}>
             <View style={styles.progressTextContainer}>
-                <Text style={styles.progressPercentage}> {Math.round(progress)}%</Text>
+                <Text style={styles.progressPercentage}>{Math.round(progress * 100)}%</Text>
                 <Text style={styles.progressLabel}>{" "} {completedDoses} of {totalDoses} doses</Text>
             </View>
             <Svg width={size} height={size} style={styles.progressRing}>
@@ -139,9 +120,12 @@ export default function HomeScreen() {
     const router = useRouter();
     const [todaysMedications, setTodaysMedications] = useState<Medication[]>([]);
     const [completedDoses, setCompletedDoses] = useState(0);
+    const [totalDoses, setTotalDoses] = useState(0);
     const [doseHistory, setDoseHistory] = useState<DoseHistory[]>([]);
     const [medications, setMedications] = useState<Medication[]>([]);
     const [showNotifications, setShowNotifications] = useState(false);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [medToDelete, setMedToDelete] = useState<string | null>(null);
 
     const loadMedications = useCallback(async () =>{
         try {
@@ -150,6 +134,10 @@ export default function HomeScreen() {
                 getTodaysDoses(),
             ]);
 
+             // Reset both states to ensure clean update
+            setMedications(allMedications);
+            setDoseHistory(todaysDoses);
+
             setDoseHistory(todaysDoses);
             setMedications(allMedications);
 
@@ -157,7 +145,10 @@ export default function HomeScreen() {
 
             const todayMeds = allMedications.filter((med)=> {
                 const startDate = new Date(med.startDate);
-                const durationDays = parseInt(med.duration.split(" ")[0]);
+            startDate.setHours(0, 0, 0, 0);
+                const durationDays = med.duration === "Ongoing" ? 
+                Infinity : 
+                parseInt(med.duration.split(" ")[0]);
 
                 if(
                     durationDays === -1 || (today >= startDate && today <= new Date(startDate.getTime() + durationDays * 24 * 60 * 60 * 1000))
@@ -167,13 +158,60 @@ export default function HomeScreen() {
                 return false;
             });
 
+
             setTodaysMedications(todayMeds);
+            
+            // Calculate total doses based on the medications for today
+            let totalDosesCount = 0;
+            todayMeds.forEach(med => {
+                // Count doses based on the number of times per day
+                totalDosesCount += med.times.length;
+            });
+            setTotalDoses(totalDosesCount);
+            
             const completed = todaysDoses.filter((dose) => dose.taken).length;
             setCompletedDoses(completed);
         } catch (error) {
             console.log("Error loading medications:", error);
         }
     }, [])
+
+    const handleDeleteMedication = async () => {
+        if (!medToDelete) return;
+        
+        try {
+          // Delete the medication from storage
+          const success = await deleteMedication(medToDelete);
+          
+          if (success) {
+            // Immediately update the UI state
+            setMedications(prev => prev.filter(m => m.id !== medToDelete));
+            setTodaysMedications(prev => prev.filter(m => m.id !== medToDelete));
+            
+            // Update the doses count
+            const updatedCompletedDoses = doseHistory.filter(
+              dose => dose.medicationId !== medToDelete && dose.taken
+            ).length;
+            setCompletedDoses(updatedCompletedDoses);
+            
+            // Recalculate total doses
+            const updatedTotalDoses = todaysMedications
+              .filter(m => m.id !== medToDelete)
+              .reduce((total, med) => total + med.times.length, 0);
+            setTotalDoses(updatedTotalDoses);
+            
+            Alert.alert("Success", "Medication deleted successfully");
+          } else {
+            Alert.alert("Error", "Failed to delete medication");
+          }
+        } catch (error) {
+          console.error("Delete medication error:", error);
+          Alert.alert("Error", "An error occurred while deleting the medication");
+        } finally {
+          setShowDeleteModal(false);
+          setMedToDelete(null);
+        }
+      };
 
     const setupNotifications = async () => {
         try {
@@ -235,7 +273,8 @@ export default function HomeScreen() {
         );
     };
 
-    const progress = todaysMedications.length > 0 ? completedDoses / (todaysMedications.length * 2) : 0;
+    // Calculate progress as a decimal between 0 and 1
+    const progress = totalDoses > 0 ? Math.min(completedDoses / totalDoses, 1) : 0;
 
     return (
         <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -266,7 +305,7 @@ export default function HomeScreen() {
                     </View>
                  <CircularProgress 
                     progress={progress}
-                    totalDoses={todaysMedications.length * 2}
+                    totalDoses={totalDoses}
                     completedDoses={completedDoses}
                 />
                 </View>
@@ -298,7 +337,7 @@ export default function HomeScreen() {
             <View style={{ paddingHorizontal: 20 }}>
                 <View style={styles.sectionHeader}>
                     <Text style={styles.sectionTitle}>Today's Schedule</Text>
-                    <Link href="/calender" asChild>
+                    <Link href="/calendar" asChild>
                         <TouchableOpacity>
                             <Text style={styles.seeAllButton}>See All</Text>
                         </TouchableOpacity>
@@ -319,7 +358,7 @@ export default function HomeScreen() {
                     todaysMedications.map((medication)=> {
                         const taken = isDoseTaken(medication.id)
                         return (
-                            <View style={styles.doseCard}>
+                            <View style={styles.doseCard} key={medication.id}>
                                 <View style={[styles.doseBadge,
                                 {
                                     backgroundColor:`${medication.color}15`
@@ -349,40 +388,78 @@ export default function HomeScreen() {
                                         <Text style={styles.takeDoseText}>Take</Text>
                                     </TouchableOpacity>
                                 )}
+                                <TouchableOpacity 
+                                    style={styles.deleteButton}
+                                    onPress={() => {
+                                        setMedToDelete(medication.id);
+                                        setShowDeleteModal(true);
+                                    }}
+                                    >
+                                        <Ionicons name="trash-outline" size={20} color="#e53935" />
+                                        </TouchableOpacity>
                             </View>
                         )
                     })
                 )}
             </View>
 
-            <Modal visible={false} transparent={true} animationType="slide"
+            <Modal visible={showNotifications} transparent={true} animationType="slide"
                 onRequestClose={() => setShowNotifications(false)}
             >
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>
-                            Notification
-                        </Text>
-                        <TouchableOpacity style={styles.closeButton}
-                        onPress={()=> setShowNotifications(false)}>
-                            <Ionicons name="close" size={24} color="#333" />
-                            
-                        </TouchableOpacity>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>
+                                Notification
+                            </Text>
+                            <TouchableOpacity style={styles.closeButton}
+                            onPress={()=> setShowNotifications(false)}>
+                                <Ionicons name="close" size={24} color="#333" />
+                            </TouchableOpacity>
+                        </View>
+                        {todaysMedications.map((medication)=> (
+                            <View style={styles.notificationItem} key={medication.id}>
+                                <View style={styles.notificationIcon}>
+                                    <Ionicons name="medical" size={24} />
+                                </View>
+                                <View style={styles.notificationContent}>
+                                    <Text style={styles.notificationTitle}>{medication.name}</Text>
+                                    <Text style={styles.notificationMessage}>{medication.dosage}</Text>
+                                    <Text style={styles.notificationTime}>{medication.times[0]}</Text>
+                                </View>
+                            </View>
+                        ))}
                     </View>
-                    {todaysMedications.map((medication)=> (
-                        <View style={styles.notificationIcon}>
-                            <View style={styles.notificationIcon}>
-                                <Ionicons name="medical" size={24} />
-                            </View>
-                            <View style={styles.notificationContent}>
-                                <Text style={styles.notificationTitle}>{medication.name}</Text>
-                                <Text style={styles.notificationMessage}>{medication.dosage}</Text>
-                                <Text style={styles.notificationTime}>{medication.times[0]}</Text>
-                            </View>
-                            </View>
-                    ))}
                 </View>
             </Modal>
+
+            <Modal
+                visible={showDeleteModal}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setShowDeleteModal(false)}
+                >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.deleteModalContent}>
+                    <Text style={styles.deleteModalTitle}>Delete Medication</Text>
+                    <Text style={styles.deleteModalText}>Are you sure you want to delete this medication?</Text>
+                    <View style={styles.deleteModalButtons}>
+                        <TouchableOpacity 
+                        style={styles.deleteModalCancel}
+                        onPress={() => setShowDeleteModal(false)}
+                        >
+                        <Text style={styles.deleteModalCancelText}>Cancel</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                        style={styles.deleteModalConfirm}
+                        onPress={handleDeleteMedication}
+                        >
+                        <Text style={styles.deleteModalConfirmText}>Delete</Text>
+                        </TouchableOpacity>
+                    </View>
+                    </View>
+                </View>
+                </Modal>
         </ScrollView>
     )
 }
@@ -403,7 +480,9 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
     },
     headerTop: {
+        flexDirection: "row",
         alignItems: "center",
+        justifyContent: "space-between",
         width: "100%",
         marginBottom: 20,
     },
@@ -425,6 +504,9 @@ const styles = StyleSheet.create({
         marginLeft: 8,
     },
     notificationBadge: {
+        position: "absolute",
+        top: -5,
+        right: -5,
         backgroundColor: "#ff5252",
         borderRadius: 10,
         height: 20,
@@ -433,7 +515,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 4,
         borderWidth: 2,
         minWidth: 20,
-        borderColor: "#146922",
+        borderColor: "#8ab4dc",
     },
     notificationCount: {
         fontSize: 11,
@@ -516,6 +598,8 @@ const styles = StyleSheet.create({
         justifyContent: "space-between"
     },
     sectionHeader: {
+        flexDirection: "row",
+        justifyContent: "space-between",
         alignItems: "center",
         marginBottom: 15,
     },
@@ -667,5 +751,56 @@ const styles = StyleSheet.create({
     notificationTime: {
         fontSize: 12,
         color: "#999"
-    }
+    },
+    // Add these to your existing styles
+doseText: {
+    fontSize: 14,
+    color: "#666",
+  },
+  actionsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  deleteButton: {
+    marginLeft: 10,
+    padding: 8,
+  },
+  deleteModalContent: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 20,
+    width: '80%',
+  },
+  deleteModalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    color: '#333',
+  },
+  deleteModalText: {
+    fontSize: 16,
+    marginBottom: 20,
+    color: '#666',
+  },
+  deleteModalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  deleteModalCancel: {
+    padding: 10,
+    marginRight: 10,
+  },
+  deleteModalCancelText: {
+    color: '#666',
+    fontWeight: '600',
+  },
+  deleteModalConfirm: {
+    padding: 10,
+    backgroundColor: '#e53935',
+    borderRadius: 6,
+  },
+  deleteModalConfirmText: {
+    color: 'white',
+    fontWeight: '600',
+  },
 })
