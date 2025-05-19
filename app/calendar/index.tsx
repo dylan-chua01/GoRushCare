@@ -2,16 +2,24 @@ import { DoseHistory, Medication, getDoseHistory, getMedication, recordDose } fr
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
-import { JSX, useCallback, useState } from "react";
+import { JSX, useCallback, useEffect, useState } from "react";
 import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export default function CalendarScreen() {
     const router = useRouter();
+    const { refresh } = router.params || {};
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [medications, setMedications] = useState<Medication[]>([]);
     const [doseHistory, setDoseHistory] = useState<DoseHistory[]>([]);
+    const [refreshKey, setRefreshKey] = useState(0);
+
+    useEffect(() => {
+        if (refresh) {
+            setRefreshKey(prev => prev + 1);
+        }
+    }, [refresh]);
 
     const loadData = useCallback(async () => {
         try {
@@ -22,15 +30,17 @@ export default function CalendarScreen() {
             setMedications(meds);
             setDoseHistory(history);
         } catch (error) {
-            console.error("Error loading calendar data:", error);
+            console.error("Error loading data:", error);
         }
-    }, [selectedDate]);
+    }, [refreshKey]); // Add refreshKey as dependency
 
     useFocusEffect(
         useCallback(() => {
             loadData();
         }, [loadData])
     );
+
+      
 
     const getDaysInMonth = (date: Date) => {
         const year = date.getFullYear();

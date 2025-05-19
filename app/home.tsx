@@ -180,33 +180,37 @@ export default function HomeScreen() {
         if (!medToDelete) return;
         
         try {
-          // Delete the medication from storage
+          // Delete from storage (including dose history)
           const success = await deleteMedication(medToDelete);
           
           if (success) {
-            // Immediately update the UI state
+            // Update all relevant states
             setMedications(prev => prev.filter(m => m.id !== medToDelete));
             setTodaysMedications(prev => prev.filter(m => m.id !== medToDelete));
+            setDoseHistory(prev => prev.filter(d => d.medicationId !== medToDelete));
             
-            // Update the doses count
+            // Recalculate counts
             const updatedCompletedDoses = doseHistory.filter(
-              dose => dose.medicationId !== medToDelete && dose.taken
+              d => d.medicationId !== medToDelete && d.taken
             ).length;
             setCompletedDoses(updatedCompletedDoses);
             
-            // Recalculate total doses
             const updatedTotalDoses = todaysMedications
               .filter(m => m.id !== medToDelete)
               .reduce((total, med) => total + med.times.length, 0);
             setTotalDoses(updatedTotalDoses);
             
+            // Force refresh the calendar screen
+            router.push({
+              pathname: '/calendar',
+              params: { refresh: Date.now() }
+            });
+            
             Alert.alert("Success", "Medication deleted successfully");
-          } else {
-            Alert.alert("Error", "Failed to delete medication");
           }
         } catch (error) {
-          console.error("Delete medication error:", error);
-          Alert.alert("Error", "An error occurred while deleting the medication");
+          console.error("Delete error:", error);
+          Alert.alert("Error", "Failed to delete medication");
         } finally {
           setShowDeleteModal(false);
           setMedToDelete(null);
@@ -348,11 +352,7 @@ export default function HomeScreen() {
                     <View style={styles.emptyState}>
                         <Ionicons name="medical-outline" size={48} color="#ccc" />
                         <Text style={styles.emptyStateText}>No Medications Scheduled for today</Text>
-                        <Link href="/medications/add">
-                            <TouchableOpacity style={styles.addMedicationButton}>
-                                <Text style={styles.addMedicationButtonText}>Add Medication</Text>
-                            </TouchableOpacity>
-                        </Link>
+                        
                     </View>
                 ): (
                     todaysMedications.map((medication)=> {

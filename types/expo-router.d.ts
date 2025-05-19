@@ -7,6 +7,7 @@ declare module 'expo-router' {
     href: Routes;
   }
   export function useRouter(): {
+    params: {};
     push: (route: Routes) => void;
     replace: (route: Routes) => void;
     back: () => void;
