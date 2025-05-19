@@ -1,124 +1,112 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import 'react-native-get-random-values';
+import { v4 as uuidv4 } from 'uuid';
 
-const MEDICATION_KEY = "@medications";
-const DOSE_HISTORY_KEY = "@dose_history";
+const MEDICATION_KEY = '@medications';
+const DOSE_HISTORY_KEY = '@dose_history';
+
+/* ------------------------------------------------------------------ */
+/*  Types                                                             */
+/* ------------------------------------------------------------------ */
 
 export interface Medication {
-    id: string;
-    name: string;
-    dosage: string;
-    times: string[];
-    startDate: string;
-    duration: string;
-    color: string;
-    reminderEnabled: boolean;
-    currentSupply: number;
-    totalSupply: number;
-    refillAt: number;
-    refillReminder: boolean;
-    lastRefillDate?: string;
+  id: string;
+  name: string;
+  dosage: string;
+  times: string[];
+  startDate: string;
+  duration: string;
+  color: string;
+  reminderEnabled: boolean;
+  currentSupply: number;
+  totalSupply: number;
+  refillAt: number;
+  refillReminder: boolean;
+  lastRefillDate?: string;
 }
 
 export interface DoseHistory {
-    id: string;
-    medicationId: string;
-    timestamp: string;
-    taken: boolean;
+  id: string;
+  medicationId: string;
+  timestamp: string;   // ISO string
+  taken: boolean;
 }
+
+/* ------------------------------------------------------------------ */
+/*  Medication helpers                                                */
+/* ------------------------------------------------------------------ */
 
 export async function getMedication(): Promise<Medication[]> {
-    try {
-        const data = await AsyncStorage.getItem(MEDICATION_KEY);
-        return data ? JSON.parse(data) : [];
-    } catch (error) {
-        console.log("Error getting medcations", error);
-        return [];
-    }
+  try {
+    const raw = await AsyncStorage.getItem(MEDICATION_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    console.error('Error getting medications:', e);
+    return [];
+  }
 }
 
-export async function addMedication(medication:Medication): Promise<void> {
-    try {
-        const medications = await getMedication();
-        medications.push(medication);
-        await AsyncStorage.setItem(MEDICATION_KEY, JSON.stringify(medications))
-    } catch (error) {
-        throw error;
-    }
+export async function addMedication(med: Medication): Promise<void> {
+  const all = await getMedication();
+  await AsyncStorage.setItem(MEDICATION_KEY, JSON.stringify([...all, med]));
 }
+
+export const deleteMedication = async (id: string): Promise<boolean> => {
+  try {
+    const meds = (await getMedication()).filter((m) => m.id !== id);
+    await AsyncStorage.setItem(MEDICATION_KEY, JSON.stringify(meds));
+
+    // remove related dose history
+    const history = (await getDoseHistory()).filter((d) => d.medicationId !== id);
+    await AsyncStorage.setItem(DOSE_HISTORY_KEY, JSON.stringify(history));
+
+    return true;
+  } catch (e) {
+    console.error('Error deleting medication:', e);
+    return false;
+  }
+};
+
+/* ------------------------------------------------------------------ */
+/*  Dose-history helpers                                              */
+/* ------------------------------------------------------------------ */
 
 export async function getDoseHistory(): Promise<DoseHistory[]> {
-    try {
-        const data = await AsyncStorage.getItem(DOSE_HISTORY_KEY);
-        return data ? JSON.parse(data) : [];
-    } catch (error) {
-        console.log("Error getting dose history:", error);
-        return [];
-        
-    }
-}
-
-export async function getTodaysDoses(): Promise<DoseHistory[]> {
-    try {
-        const history = await getDoseHistory();
-        const today = new Date().toDateString();
-        return history.filter(
-            (dose) => new Date(dose.timestamp).toDateString() === today
-        )
-    } catch (error) {
-        console.log("Error getting today's doses:", error);
-        return [];
-    }
+  try {
+    const raw = await AsyncStorage.getItem(DOSE_HISTORY_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    console.error('Error getting dose history:', e);
+    return [];
+  }
 }
 
 export async function recordDose(
     medicationId: string,
     taken: boolean,
-    timestamp: string,
-):Promise<void>{
-    try {
-        const history = await getDoseHistory();
-        const newDose: DoseHistory = {
-            id: Math.random().toString(36).substr(2, 9),
-            medicationId,
-            timestamp,
-            taken,
-        };
-        history.push(newDose);
-        await AsyncStorage.setItem(DOSE_HISTORY_KEY, JSON.stringify(history))
-    } catch (error) {
-        console.error("Error recording dose:", error);
-        throw error;
-    }
+    timestamp: string = new Date().toISOString(),
+  ): Promise<void> {
+    const history = await getDoseHistory();
+    history.unshift({
+      id: uuidv4(), // Use uuidv4 instead of crypto.randomUUID
+      medicationId,
+      timestamp,
+      taken,
+    });
+    await AsyncStorage.setItem(DOSE_HISTORY_KEY, JSON.stringify(history));
+  }
+
+export async function getTodaysDoses(): Promise<DoseHistory[]> {
+  const today = new Date().toDateString();
+  return (await getDoseHistory()).filter(
+    (d) => new Date(d.timestamp).toDateString() === today,
+  );
 }
+
+/* ------------------------------------------------------------------ */
+/*  Utilities                                                         */
+/* ------------------------------------------------------------------ */
 
 export async function clearAllData(): Promise<void> {
-    try {
-        await AsyncStorage.multiRemove([MEDICATION_KEY, DOSE_HISTORY_KEY]);
-    } catch (error) {
-        console.log("Error clearing data:", error);
-        throw error;
-    }
+  await AsyncStorage.multiRemove([MEDICATION_KEY, DOSE_HISTORY_KEY]);
 }
-
-export const deleteMedication = async (id: string): Promise<boolean> => {
-    try {
-      // Get current medications
-      const existingMeds = await getMedication();
-      
-      // Filter out the deleted medication
-      const updatedMeds = existingMeds.filter(med => med.id !== id);
-      
-      // Save to storage
-      await AsyncStorage.setItem(MEDICATION_KEY, JSON.stringify(updatedMeds));
-      
-      // Also remove any associated dose history
-      const doseHistory = await getDoseHistory();
-      const updatedDoseHistory = doseHistory.filter(dose => dose.medicationId !== id);
-      await AsyncStorage.setItem(DOSE_HISTORY_KEY, JSON.stringify(updatedDoseHistory));
-      
-      return true;
-    } catch (error) {
-      console.error('Error deleting medication:', error);
-      return false;
-    }
-  };

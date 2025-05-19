@@ -36,13 +36,13 @@ const QUICK_ACTIONS = [
         color: "#1976d2",
         gradient: ['#2196f3', '#1976d2'] as [string, string],
     },
-    // {
-    //     icon: "time-outline" as const,
-    //     label: "History\nLog",
-    //     route: "/history" as const,
-    //     color: "#c2185b",
-    //     gradient: ["#e91e63", "#c2185b"] as [string, string],
-    // },
+    {
+        icon: "time-outline" as const,
+        label: "History\nLog",
+        route: "/history" as const,
+        color: "#c2185b",
+        gradient: ["#e91e63", "#c2185b"] as [string, string],
+    },
     // {
     //     icon: "medical-outline" as const,
     //     label: "Refill\nTracker",
