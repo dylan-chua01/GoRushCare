@@ -22,9 +22,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 /* ----------------------------------------------------- */
 
 interface EnhancedDoseHistory extends DoseHistory {
-  notes: React.JSX.Element;
+  notes: string;
   medName: string;
   medColor?: string;
+  medicationId: string;
 }
 
 interface Section {
@@ -33,7 +34,7 @@ interface Section {
 }
 
 interface FilterOptions {
-  status: 'all' | 'taken' | 'skipped';
+  status: 'all' | 'taken';
   medication: string | null;
 }
 
@@ -42,41 +43,51 @@ interface FilterOptions {
 /* ----------------------------------------------------- */
 
 const groupByDate = (history: EnhancedDoseHistory[]): Section[] => {
-  const todayStr = new Date().toDateString();
-  const yesterdayStr = new Date(Date.now() - 864e5).toDateString();
+    const todayStr = new Date().toDateString();
+    const yesterdayStr = new Date(Date.now() - 864e5).toDateString();
   
-  const grouped = history.reduce((acc: Record<string, EnhancedDoseHistory[]>, dose) => {
-    const dateStr = new Date(dose.timestamp).toDateString();
-    if (!acc[dateStr]) acc[dateStr] = [];
-    acc[dateStr].push(dose);
-    return acc;
-  }, {});
+    const grouped = history.reduce(
+      (acc: Record<string, EnhancedDoseHistory[]>, dose) => {
+        const dateStr = new Date(dose.timestamp).toDateString();
+        if (!acc[dateStr]) acc[dateStr] = [];
+        acc[dateStr].push(dose);
+        return acc;
+      },
+      {}
+    );
   
-  const sections: Section[] = Object.entries(grouped).map(([dateStr, data]) => {
-    let title = dateStr;
-    if (dateStr === todayStr) title = 'Today';
-    else if (dateStr === yesterdayStr) title = 'Yesterday';
-    else {
-      title = new Date(dateStr).toLocaleDateString([], { 
-        month: 'short', 
-        day: 'numeric', 
-        year: 'numeric' 
-      });
-    }
-    return { title, data };
-  });
+    const sections: Section[] = Object.entries(grouped).map(
+      ([dateStr, data]) => {
+        let title = dateStr;
+        if (dateStr === todayStr) title = "Today";
+        else if (dateStr === yesterdayStr) title = "Yesterday";
+        else {
+          title = new Date(dateStr).toLocaleDateString([], {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          });
+        }
+        return {
+          title,
+          data: data.sort(
+            (a, b) =>
+              new Date(b.timestamp).getTime() -
+              new Date(a.timestamp).getTime()
+          ),
+        };
+      }
+    );
   
-  return sections.sort((a, b) => {
-    if (a.title === 'Today') return -1;
-    if (b.title === 'Today') return 1;
-    if (a.title === 'Yesterday') return -1;
-    if (b.title === 'Yesterday') return 1;
-    
-    const aTime = a.data[0]?.timestamp ? new Date(a.data[0].timestamp).getTime() : 0;
-    const bTime = b.data[0]?.timestamp ? new Date(b.data[0].timestamp).getTime() : 0;
-    return bTime - aTime;
-  });
-};
+    return sections.sort((a, b) => {
+      const getTime = (section: Section) =>
+        section.data[0]?.timestamp
+          ? new Date(section.data[0].timestamp).getTime()
+          : 0;
+      return getTime(b) - getTime(a);
+    });
+  };
+  
 
 const enhanceDoseHistory = (history: DoseHistory[], medications: Medication[]): EnhancedDoseHistory[] => {
   return history.map(dose => {
@@ -142,13 +153,11 @@ export default function HistoryScreen() {
   };
 
   const filteredHistory = useMemo(() => {
-    return history.filter(dose => {
-      const statusMatch = filters.status === 'all' || 
-        (filters.status === 'taken' && dose.taken) || 
-        (filters.status === 'skipped' && !dose.taken);
-      
-      const medMatch = !filters.medication || dose.medicationId === filters.medication;
-      
+    return history.filter((dose) => {
+      const medMatch =
+        !filters.medication || dose.medicationId === filters.medication;
+      const statusMatch =
+        filters.status === "all" || (filters.status === "taken" && dose.taken);
       return statusMatch && medMatch;
     });
   }, [history, filters]);
@@ -158,25 +167,21 @@ export default function HistoryScreen() {
   [filteredHistory]);
 
   const confirmClear = () =>
-    Alert.alert(
-      'Clear History', 
-      'Are you sure you want to clear all dose history? This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear All',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await clearAllData();
-              setHistory([]);
-            } catch (err) {
-              Alert.alert('Error', 'Failed to clear history. Please try again.');
-            }
-          },
+    Alert.alert("Clear History", "Are you sure you want to clear all dose history?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Clear All",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await clearAllData();
+            setHistory([]);
+          } catch {
+            Alert.alert("Error", "Failed to clear history. Please try again.");
+          }
         },
-      ]
-    );
+      },
+    ]);
 
   const toggleFilter = (type: 'status' | 'medication', value: any) => {
     setFilters(prev => {
@@ -228,23 +233,6 @@ export default function HistoryScreen() {
             ]}>Taken</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity 
-            style={[
-              styles.filterChip, 
-              filters.status === 'skipped' && styles.skippedFilterChip
-            ]}
-            onPress={() => toggleFilter('status', 'skipped')}
-          >
-            <Ionicons 
-              name="close-circle" 
-              size={14} 
-              color={filters.status === 'skipped' ? '#e11d48' : '#4b5563'} 
-            />
-            <Text style={[
-              styles.chipText, 
-              filters.status === 'skipped' && styles.skippedChipText
-            ]}>Skipped</Text>
-          </TouchableOpacity>
         </View>
       </View>
       
@@ -411,22 +399,6 @@ export default function HistoryScreen() {
                     ]} 
                   />
                   <Text style={styles.medName}>{item.medName}</Text>
-                </View>
-                <View style={[
-                  styles.statusBadge,
-                  item.taken ? styles.takenBadge : styles.skippedBadge
-                ]}>
-                  <Ionicons 
-                    name={item.taken ? "checkmark-circle" : "close-circle"} 
-                    size={12} 
-                    color={item.taken ? "#16a34a" : "#e11d48"} 
-                  />
-                  <Text style={[
-                    styles.statusText,
-                    { color: item.taken ? "#16a34a" : "#e11d48" }
-                  ]}>
-                    {item.taken ? 'Taken' : 'Skipped'}
-                  </Text>
                 </View>
               </View>
               

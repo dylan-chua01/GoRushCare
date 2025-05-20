@@ -43,13 +43,13 @@ const QUICK_ACTIONS = [
         color: "#c2185b",
         gradient: ["#e91e63", "#c2185b"] as [string, string],
     },
-    // {
-    //     icon: "medical-outline" as const,
-    //     label: "Refill\nTracker",
-    //     route: "/refills" as const,
-    //     color: "#e64a19",
-    //     gradient: ["#ff5722", "#e64a19"] as [string, string],
-    // }
+    {
+        icon: "medical-outline" as const,
+        label: "Refill\nTracker",
+        route: "/refill" as const,
+        color: "#e64a19",
+        gradient: ["#ff5722", "#e64a19"] as [string, string],
+    }
 ]
 
 interface CircularProgressProps{

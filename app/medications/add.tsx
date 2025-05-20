@@ -8,38 +8,6 @@ import React, { useState } from "react";
 import { Alert, Dimensions, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 const { width } = Dimensions.get("window")
-const FREQUENCIES = [
-    {
-        id: '1',
-        label: 'Once daily',
-        icon: 'sunny-outline' as const,
-        times: ['09:00'],
-    },
-    {
-        id: '2',
-        label: 'Twice daily',
-        icon: 'sync-outline' as const,
-        times: ['09:00', '21:00'],
-    },
-    {
-        id: '3',
-        label: 'Three times daily',
-        icon: 'time-outline' as const,
-        times: ['09:00', '13:00', '21:00'],
-    },
-    {
-        id: '4',
-        label: 'Four times daily',
-        icon: 'repeat-outline' as const,
-        times: ['09:00', '13:00', '17:00', '21:00'],
-    },
-    {
-        id: '5',
-        label: 'Five times daily',
-        icon: 'alarm-outline' as const,
-        times: ['09:00', '12:00', '15:00', '18:00', '21:00'],
-    }
-];
 
 const DURATIONS = [
     { id: '1', label: '7 days', value: 7},
@@ -55,10 +23,9 @@ export default function AddMedicationScreen() {
     const [form, setForm] = useState({
         name: "",
         dosage: "",
-        frequency: "",
         duration: "",
         startDate: new Date(),
-        times: ["09:00"],
+        times: [""],
         notes:"",
         reminderEnabled: true,
         refillReminder: false,
@@ -67,35 +34,11 @@ export default function AddMedicationScreen() {
     })
 
     const [errors, setErrors] = useState<{ [key: string]: string }>({});
-    const [selectedFrequency, setSelectedFrequency] = useState("");
     const [selectedDuration, setSelectedDuration] = useState("");
     const [showTimePicker, setShowTimePicker] = useState(false);
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     
-    const renderFrequencyOptions = () => {
-        return (
-            <View style={styles.optionsGrid}>
-                {FREQUENCIES.map((freq) => (
-                    <TouchableOpacity 
-                        key={freq.id} 
-                        style={[styles.optionCard, selectedFrequency === freq.label && styles.selectedOptionCard]}
-                        onPress={() => {
-                            setSelectedFrequency(freq.label);
-                            setForm({...form, frequency: freq.label, times: freq.times});
-                        }}
-                    >
-                        <View style={[styles.optionIcon, selectedFrequency === freq.label && styles.selectedOptionIcon]}>
-                            <Ionicons name={freq.icon} size={24} color={selectedFrequency === freq.label ? "white" : "#666"}/>
-                        </View>
-                        <Text style={[styles.optionLabel, selectedFrequency === freq.label && styles.selectedOptionLabel]}>
-                            {freq.label}
-                        </Text>
-                    </TouchableOpacity>
-                ))}
-            </View>
-        );
-    }
 
     const renderDurationOptions = () => {
         return (
@@ -130,10 +73,6 @@ export default function AddMedicationScreen() {
 
         if(!form.dosage.trim()){
             newErrors.dosage = "Dosage is required";
-        }
-
-        if(!form.frequency.trim()){
-            newErrors.frequency = "Frequency is required";
         }
 
         if(!form.duration.trim()){
@@ -266,11 +205,6 @@ export default function AddMedicationScreen() {
                     <View style={styles.section}>
                         <Text style={styles.sectionHeader}>Schedule</Text>
                         
-                        <Text style={styles.sectionSubtitle}>Frequency *</Text>
-                        {errors.frequency && (
-                            <Text style={styles.errorText}>{errors.frequency}</Text>
-                        )}
-                        {renderFrequencyOptions()}
 
                         <Text style={styles.sectionSubtitle}>Duration *</Text>
                         {errors.duration && (
@@ -301,28 +235,6 @@ export default function AddMedicationScreen() {
                                     if (date) setForm({...form, startDate: date});
                                 }}
                             />
-                        )}
-
-                        {form.frequency && form.frequency !== "As needed" && (
-                            <View style={styles.timeContainer}>
-                                <Text style={styles.sectionSubtitle}>Medication Times</Text>
-
-                                {form.times.map((time, index) => (
-                                    <TouchableOpacity
-                                        key={index}
-                                        style={styles.timeButton}
-                                        onPress={() => {
-                                            setShowTimePicker(true);
-                                        }}
-                                    >
-                                        <View style={styles.timeIconContainer}>
-                                            <Ionicons name="time-outline" size={20} color={'#1a8e2d'} />
-                                        </View>
-                                        <Text style={styles.timeButtonText}>{time}</Text>
-                                        <Ionicons name="chevron-forward" size={20} color={"#666"}/>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
                         )}
 
                         {showTimePicker && (

@@ -26,6 +26,7 @@ export interface Medication {
 }
 
 export interface DoseHistory {
+  notes: string;
   id: string;
   medicationId: string;
   timestamp: string;   // ISO string
@@ -88,10 +89,11 @@ export async function recordDose(
   ): Promise<void> {
     const history = await getDoseHistory();
     history.unshift({
-      id: uuidv4(), // Use uuidv4 instead of crypto.randomUUID
-      medicationId,
-      timestamp,
-      taken,
+        id: uuidv4(),
+        medicationId,
+        timestamp,
+        taken,
+        notes: ''
     });
     await AsyncStorage.setItem(DOSE_HISTORY_KEY, JSON.stringify(history));
   }
