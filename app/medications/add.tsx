@@ -78,8 +78,9 @@ const [form, setForm] = useState({
           newErrors.name = "Medication name is required";
         }
       
-        if (!form.dosage.trim()) {
-          newErrors.dosage = "Dosage is required";
+        // Make dosage optional for pill-count medications
+        if (form.medicationType === "dose-based" && !form.dosage.trim()) {
+          newErrors.dosage = "Dosage is required for dose-based medications";
         }
       
         if (!form.duration.trim()) {
@@ -98,6 +99,9 @@ const [form, setForm] = useState({
             newErrors.refillAtPills = "Refill threshold (pills) must be a number";
           }
         } else if (form.medicationType === "dose-based") {
+          if (!form.dosage.trim()) {
+            newErrors.dosage = "Dosage is required";
+          }
           if (!form.dosePerTake || isNaN(Number(form.dosePerTake))) {
             newErrors.dosePerTake = "Dose per take must be a number";
           }
@@ -111,7 +115,7 @@ const [form, setForm] = useState({
       
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
-      };
+    };
 
     const handleSave = async () => {
         try {
@@ -132,6 +136,8 @@ const [form, setForm] = useState({
                 startDate: form.startDate.toISOString(),
                 color: randomColor,
                 reminderEnabled: form.reminderEnabled,
+                // Only include dosage if it exists or if dose-based
+                dosage: form.medicationType === 'dose-based' ? form.dosage : form.dosage || '',
                 // Normalize numerical fields based on medication type
                 ...(form.medicationType === "pill-count"
                   ? {
@@ -275,13 +281,29 @@ const [form, setForm] = useState({
   ) : (
     <>
       <View style={styles.inputContainer}>
-        <Text style={styles.inputLabel}>Total Dosage *</Text>
-        <TextInput
-          style={styles.mainInput}
-          placeholder="e.g. 200mg"
-          value={form.dosage}
-          onChangeText={(text) => setForm({...form, dosage: text})}
-        />
+      <Text style={styles.inputLabel}>
+        Dosage {form.medicationType === 'dose-based' ? '*' : ''}
+    </Text>
+    <TextInput
+        style={[
+            styles.mainInput, 
+            errors.dosage && styles.inputError,
+            form.medicationType === 'pill-count' && styles.optionalInput
+        ]}
+        placeholder={
+            form.medicationType === 'dose-based' 
+                ? "e.g. 200mg" 
+                : "e.g. 200mg (optional)"
+        }
+        placeholderTextColor={'#999'}
+        value={form.dosage}
+        onChangeText={(text) => {
+            setForm({...form, dosage:text})
+            if(errors.dosage) {
+                setErrors({...errors, dosage: ""})
+            }
+        }}
+    />
       </View>
       <View style={styles.inputContainer}>
         <Text style={styles.inputLabel}>Dose Per Take *</Text>
@@ -929,5 +951,9 @@ refillText: {
   fontSize: 13,
   color: '#888',
   marginTop: 2,
-}
+},
+optionalInput: {
+    backgroundColor: '#f9f9f9',
+    borderColor: '#ddd',
+},
 })

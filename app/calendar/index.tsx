@@ -3,7 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
 import { JSX, useCallback, useEffect, useState } from "react";
-import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -121,9 +121,10 @@ export default function CalendarScreen() {
 
     const renderMedicationsForDate = () => {
         const dateStr = selectedDate.toDateString();
-        const dayDose = doseHistory.filter(
-            (dose: DoseHistory) => new Date(dose.timestamp).toDateString() === dateStr
-        );
+        const todayStr = new Date().toDateString();
+        const dayDose = doseHistory.filter((dose: DoseHistory) => {
+            return new Date(dose.timestamp).toDateString() === dateStr && dose.taken;
+        });
 
         if (medications.length === 0) {
             return (
@@ -154,7 +155,7 @@ export default function CalendarScreen() {
 
         return activeMeds.map((medication) => {
             const taken = dayDose.some(
-                (dose: DoseHistory) => dose.medicationId === medication.id && dose.taken
+                (dose: DoseHistory) => dose.medicationId === medication.id
             );
             
             // Format times for display
@@ -186,17 +187,26 @@ export default function CalendarScreen() {
                         </View>
                     ) : (
                         <TouchableOpacity
-                            style={[
-                                styles.takeDoseButton,
-                                { backgroundColor: medication.color },
-                            ]}
-                            onPress={async () => {
-                                await recordDose(medication.id, true, selectedDate.toISOString());
-                                loadData();
-                            }}
-                        >
-                            <Text style={styles.takeDoseText}>Take</Text>
-                        </TouchableOpacity>
+    style={[
+        styles.takeDoseButton,
+        { backgroundColor: medication.color },
+    ]}
+    onPress={async () => {
+        // Only record dose if it's today or future
+        if (selectedDate.toDateString() >= new Date().toDateString()) {
+            await recordDose(medication.id, true, selectedDate.toISOString());
+            loadData();
+        } else {
+            Alert.alert(
+                "Cannot Record Dose",
+                "You can only record doses for today or future dates",
+                [{ text: "OK" }]
+            );
+        }
+    }}
+>
+    <Text style={styles.takeDoseText}>Take</Text>
+</TouchableOpacity>
                     )}
                 </View>
             );

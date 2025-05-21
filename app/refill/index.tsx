@@ -1,18 +1,19 @@
-import { Medication, getMedication, refillMedication } from '@/utils/storage';
+import { Medication, clearMedicationNotification, getMedication, refillMedication } from '@/utils/storage';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Animated,
-    Linking,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Linking,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -45,14 +46,21 @@ const RefillScreen: React.FC<RefillScreenProps> = () => {
     setLoading(true);
     try {
       const meds = await getMedication();
-      // Filter only medications with refill reminders enabled
-      setMedications(meds.filter(med => med.refillReminder));
+      // Filter only medications that still need refill
+      const needsRefill = meds.filter(med => {
+        if (med.refillReminder) {
+          if (med.medicationType === 'pill-count') {
+            return (med.currentPills ?? 0) <= (med.refillAtPills ?? 0);
+          } else {
+            return (med.currentDose ?? 0) <= (med.refillAtDose ?? 0);
+          }
+        }
+        return false;
+      });
+      setMedications(needsRefill);
     } catch (error) {
       console.error('Error loading medications:', error);
-      Alert.alert(
-        'Error',
-        'Failed to load medications. Please try again.'
-      );
+      Alert.alert('Error', 'Failed to load medications. Please try again.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -116,6 +124,30 @@ const RefillScreen: React.FC<RefillScreenProps> = () => {
     loadMedications();
   };
 
+  const handleClearRefill = async (medId: string) => {
+    try {
+      const success = await clearMedicationNotification(medId);
+      if (success) {
+        // Filter out the cleared medication from the local state immediately
+        setMedications(prevMeds => prevMeds.filter(med => med.id !== medId));
+        
+        Alert.alert(
+          "Success", 
+          "Medication refill status cleared",
+          [{
+            text: "OK",
+            onPress: async () => {
+              // Force a complete reload of medications
+              await loadMedications();
+            }
+          }]
+        );
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to clear refill status");
+      console.error(error);
+    }
+  };
   // Calculate if we have any medications that need refill
   const needsRefillMeds = medications.filter(med => {
     if (med.medicationType === 'pill-count') {
@@ -144,7 +176,10 @@ const RefillScreen: React.FC<RefillScreenProps> = () => {
     </View>
 
     <Text style={styles.refillNote}>
-      Please ensure you add medication after you have received your order.
+      1. Please ensure you add medication after you have received your order.
+    </Text>
+    <Text style={styles.refillNote}>
+      2. Please ensure clear the refill notification.
     </Text>
       
       {loading ? (
@@ -158,6 +193,12 @@ const RefillScreen: React.FC<RefillScreenProps> = () => {
             style={styles.scrollContainer}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.contentContainer}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                colors={['#0284c7']}
+              />}
           >
             <Animated.View style={{ opacity: fadeAnim }}>
               {needsRefillMeds.map((med, index) => (
@@ -167,76 +208,66 @@ const RefillScreen: React.FC<RefillScreenProps> = () => {
                 ]}>
                   <View style={styles.medInfo}>
                     <Text style={styles.medName}>{med.name}</Text>
-                    <View style={styles.supplyContainer}>
-                      <View style={[
-                        styles.supplyIndicator, 
-                        med.medicationType === 'pill-count' 
-                          ? (med.currentPills === 0 ? styles.supplyEmpty : styles.supplyLow)
-                          : (med.currentDose === 0 ? styles.supplyEmpty : styles.supplyLow)
-                      ]} />
-                      
-                      {med.medicationType === 'pill-count' ? (
-                        <Text style={styles.supplyText}>
-                          <Text style={med.currentPills === 0 ? styles.emptyText : styles.lowText}>
-                            {med.currentPills}
-                          </Text> pills remaining ({med.pillsPerDose} pill{med.pillsPerDose !== 1 ? 's' : ''} per dose)
-                        </Text>
-                      ) : (
-                        <Text style={styles.supplyText}>
-                          <Text style={med.currentDose === 0 ? styles.emptyText : styles.lowText}>
-                            {med.currentDose}
-                          </Text> mg remaining ({med.dosePerTake} mg per dose)
-                        </Text>
-                      )}
-                    </View>
+                    
                     <Text style={styles.refillAtText}>
                       {med.medicationType === 'pill-count' 
                         ? `Refill threshold: ${med.refillAtPills} pills` 
                         : `Refill threshold: ${med.refillAtDose} mg`}
                     </Text>
+                    
                   </View>
                   
                   {refillingId === med.id ? (
-                    <View style={styles.refillInputContainer}>
-                      <Text style={styles.refillLabel}>
-                        {med.medicationType === 'pill-count' ? 'Pills to add:' : 'Dosage (mg) to add:'}
-                      </Text>
-                      <TextInput
-                        style={styles.refillInput}
-                        placeholder={med.medicationType === 'pill-count' ? "Number of pills" : "Amount in mg"}
-                        value={refillAmount}
-                        onChangeText={setRefillAmount}
-                        keyboardType="numeric"
-                        autoFocus={true}
-                        returnKeyType="done"
-                      />
-                      <View style={styles.refillButtonsRow}>
-                        <TouchableOpacity 
-                          style={styles.cancelButton}
-                          onPress={cancelRefill}
-                        >
-                          <Text style={styles.cancelButtonText}>Cancel</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity 
-                          style={styles.confirmButton}
-                          onPress={() => handleRefill(med.id)}
-                        >
-                          <Text style={styles.confirmButtonText}>Confirm</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  ) : (
-                    <TouchableOpacity 
-                        style={styles.refillButton}
-                        onPress={() => Linking.openURL('https://www.gorushbn.com/order-form')}
-                        accessibilityLabel={`Order ${med.name}`}
-                        >
-                        <View style={styles.refillButtonContent}>
-                            <Ionicons name="cart" size={20} color="white" />
-                            <Text style={styles.refillButtonText}>Order Now</Text>
-                        </View>
-                        </TouchableOpacity>
-                  )}
+  <View style={styles.refillInputContainer}>
+    <Text style={styles.refillLabel}>
+      {med.medicationType === 'pill-count' ? 'Pills to add:' : 'Dosage (mg) to add:'}
+    </Text>
+    <TextInput
+      style={styles.refillInput}
+      placeholder={med.medicationType === 'pill-count' ? "Number of pills" : "Amount in mg"}
+      value={refillAmount}
+      onChangeText={setRefillAmount}
+      keyboardType="numeric"
+      autoFocus={true}
+      returnKeyType="done"
+    />
+    <View style={styles.refillButtonsRow}>
+      <TouchableOpacity 
+        style={styles.cancelButton}
+        onPress={cancelRefill}
+      >
+        <Text style={styles.cancelButtonText}>Cancel</Text>
+      </TouchableOpacity>
+      <TouchableOpacity 
+        style={styles.confirmButton}
+        onPress={() => handleRefill(med.id)}
+      >
+        <Text style={styles.confirmButtonText}>Confirm</Text>
+      </TouchableOpacity>
+    </View>
+  </View>
+) : (
+  <View style={styles.buttonRow}>
+    <TouchableOpacity
+      style={styles.clearRefillButton}
+      onPress={() => handleClearRefill(med.id)}
+    >
+      <View style={styles.clearButton}>
+      <Text>Remove Refill Notice</Text> 
+      </View>
+    </TouchableOpacity>
+    <TouchableOpacity 
+      style={styles.refillButton}
+      onPress={() => Linking.openURL('https://www.gorushbn.com/order-form')}
+      accessibilityLabel={`Order ${med.name}`}
+    >
+      <View style={styles.refillButtonContent}>
+        <Ionicons name="cart" size={20} color="white" />
+        <Text style={styles.refillButtonText}>Order Now</Text>
+      </View>
+    </TouchableOpacity>
+  </View>
+)}
                 </View>
               ))}
             </Animated.View>
@@ -465,6 +496,30 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginHorizontal: 16,
   },
+  clearRefillButton: {
+    padding: 4,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  clearButton: {
+    backgroundColor: '#e0e7f0',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'flex-end',
+    elevation: 1,
+  },
+  timestampText: {
+    fontSize: 12,
+    color: '#6b7280', // A muted gray color
+    marginTop: 4,
+  }
 });
 
 export default RefillScreen;

@@ -17,6 +17,7 @@ export interface Medication {
   // Add medication type
   medicationType: 'pill-count' | 'dose-based';
   
+  
   // For pill-count medications
   pillsPerDose?: number;    // How many pills per dose (default 1)
   currentPills?: number;    // Current pill count
@@ -38,6 +39,7 @@ export interface Medication {
   reminderEnabled: boolean;
   refillReminder: boolean;
   lastRefillDate?: string;
+  refillNotifiedAt?: Date | string;
 }
 
 export interface DoseHistory {
@@ -112,7 +114,7 @@ export async function getDoseHistory(): Promise<DoseHistory[]> {
 export async function recordDose(
   medicationId: string, 
   taken: boolean,
-  timestamp: string = new Date().toISOString(),
+  timestamp: string = new Date().toISOString()
 ): Promise<boolean> {
   try {
     const history = await getDoseHistory();
@@ -124,8 +126,8 @@ export async function recordDose(
       return false;
     }
 
-    // Only decrement if dose was taken
-    if (taken) {
+    // Only decrement if dose was taken AND it's for today or future
+    if (taken && new Date(timestamp) >= new Date(new Date().setHours(0, 0, 0, 0))) {
       if (medication.medicationType === 'pill-count') {
         medication.currentPills = Math.max(0, medication.currentPills! - (medication.pillsPerDose || 1));
       } else {
@@ -134,15 +136,16 @@ export async function recordDose(
       await updateMedication(medication);
     }
 
-    history.unshift({
+    // Add the new dose record
+    const newRecord = {
       id: uuidv4(),
       medicationId,
       timestamp,
       taken,
       notes: ''
-    });
+    };
     
-    await AsyncStorage.setItem(DOSE_HISTORY_KEY, JSON.stringify(history));
+    await AsyncStorage.setItem(DOSE_HISTORY_KEY, JSON.stringify([newRecord, ...history]));
     return true;
   } catch (error) {
     console.error('Error recording dose:', error);
@@ -201,13 +204,17 @@ export async function refillMedication(
           return { 
             ...med, 
             currentPills: (med.currentPills || 0) + quantity,
-            lastRefillDate: now
+            lastRefillDate: now,
+            refillReminder: false, // Clear the reminder
+            refillNotifiedAt: undefined
           };
         } else {
           return { 
             ...med, 
             currentDose: (med.currentDose || 0) + quantity,
-            lastRefillDate: now
+            lastRefillDate: now,
+            refillReminder: false, // Clear the reminder
+            refillNotifiedAt: undefined
           };
         }
       }
@@ -221,6 +228,7 @@ export async function refillMedication(
   }
 }
 
+
 export async function clearMedicationNotification(medicationId: string): Promise<boolean> {
   try {
     const medications = await getMedication();
@@ -228,17 +236,41 @@ export async function clearMedicationNotification(medicationId: string): Promise
       if (m.id === medicationId) {
         return {
           ...m,
-          reminderEnabled: false, // Disable reminders for this medication
+          refillReminder: false,  // Ensure this is set to false
+          refillNotifiedAt: undefined, // Clear the timestamp
+          // Don't modify current supply here - that should only happen on actual refill
         };
       }
       return m;
     });
     
-    // Use the correct MEDICATION_KEY constant
     await AsyncStorage.setItem(MEDICATION_KEY, JSON.stringify(updated));
     return true;
   } catch (e) {
     console.error('Error clearing notification:', e);
+    return false;
+  }
+}
+
+
+export async function setRefillNotification(medicationId: string): Promise<boolean> {
+  try {
+    const medications = await getMedication();
+    const updated = medications.map(m => {
+      if (m.id === medicationId) {
+        return {
+          ...m,
+          refillReminder: true,
+          refillNotifiedAt: new Date().toISOString() // Set current timestamp
+        };
+      }
+      return m;
+    });
+    
+    await AsyncStorage.setItem(MEDICATION_KEY, JSON.stringify(updated));
+    return true;
+  } catch (e) {
+    console.error('Error setting refill notification:', e);
     return false;
   }
 }
@@ -250,4 +282,33 @@ export async function clearMedicationNotification(medicationId: string): Promise
 
 export async function clearAllData(): Promise<void> {
   await AsyncStorage.multiRemove([MEDICATION_KEY, DOSE_HISTORY_KEY]);
+}
+
+export async function checkMedicationNeedsRefill(medicationId: string): Promise<boolean> {
+  try {
+    const medications = await getMedication();
+    const medication = medications.find(m => m.id === medicationId);
+    
+    if (!medication) return false;
+    
+    if (medication.medicationType === 'pill-count') {
+      return (medication.currentPills ?? 0) <= (medication.refillAtPills ?? 0);
+    } else {
+      return (medication.currentDose ?? 0) <= (medication.refillAtDose ?? 0);
+    }
+  } catch (e) {
+    console.error('Error checking refill status:', e);
+    return false;
+  }
+}
+
+export async function getDosesForDate(date: Date): Promise<DoseHistory[]> {
+  try {
+    const history = await getDoseHistory();
+    const dateStr = date.toDateString();
+    return history.filter(dose => new Date(dose.timestamp).toDateString() === dateStr);
+  } catch (e) {
+    console.error('Error getting doses for date:', e);
+    return [];
+  }
 }

@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { useRouter } from 'expo-router';
@@ -61,11 +62,15 @@ export default function AuthScreen() {
             
             <View style={styles.content}>
                 <View style={styles.iconContainer}>
-                    <Ionicons name='medical' size={80} color='#1d74bc' />
+                <Image 
+      source={require('../public/GoRush_Logo.png')} 
+      style={styles.companyLogo} 
+      resizeMode="contain"
+    />
                 </View>
 
                 <Text style={styles.title}>
-                    GoRush Care
+                    Care
                 </Text>
                     
                 <Text style={styles.subtitle}>
@@ -197,5 +202,11 @@ const styles = StyleSheet.create({
         color: '#bf2f3e',
         marginLeft: 5,
         fontSize: 14,
-    }
+    },
+    companyLogo: {
+        width: 250,
+        height: 100,
+        alignSelf: 'center',
+        marginBottom: 10,
+      },
 })
