@@ -50,7 +50,9 @@ export default function AuthScreen() {
                 setError('Authentication Failed: Please try again')
             }
         } catch (error) {
-            
+            setError('Authentication Failed: Please try again')
+        } finally {
+            setIsAuthenticating(false);
         }
     }
 

@@ -10,27 +10,42 @@ const DOSE_HISTORY_KEY = '@dose_history';
 /* ------------------------------------------------------------------ */
 
 export interface Medication {
+  refillAt: any;
+  currentSupply: any;
   id: string;
   name: string;
-  dosage: string;
+  // Add medication type
+  medicationType: 'pill-count' | 'dose-based';
+  
+  // For pill-count medications
+  pillsPerDose?: number;    // How many pills per dose (default 1)
+  currentPills?: number;    // Current pill count
+  totalPills?: number;     // Full pill supply
+  refillAtPills?: number;  // When to trigger reminder
+  
+  // For dose-based medications
+  dosage?: string;         // e.g. "200mg"
+  dosePerTake?: number;    // e.g. 20 (mg)
+  currentDose?: number;    // Current mg remaining
+  totalDose?: number;      // Full mg supply
+  refillAtDose?: number;   // When to trigger reminder
+  
+  // Common fields
   times: string[];
   startDate: string;
   duration: string;
   color: string;
   reminderEnabled: boolean;
-  currentSupply: number;
-  totalSupply: number;
-  refillAt: number;
   refillReminder: boolean;
   lastRefillDate?: string;
 }
 
 export interface DoseHistory {
-  notes: string;
   id: string;
   medicationId: string;
   timestamp: string;   // ISO string
   taken: boolean;
+  notes?: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -50,6 +65,18 @@ export async function getMedication(): Promise<Medication[]> {
 export async function addMedication(med: Medication): Promise<void> {
   const all = await getMedication();
   await AsyncStorage.setItem(MEDICATION_KEY, JSON.stringify([...all, med]));
+}
+
+export async function updateMedication(medication: Medication): Promise<boolean> {
+  try {
+    const meds = await getMedication();
+    const updated = meds.map(med => med.id === medication.id ? medication : med);
+    await AsyncStorage.setItem(MEDICATION_KEY, JSON.stringify(updated));
+    return true;
+  } catch (e) {
+    console.error('Error updating medication:', e);
+    return false;
+  }
 }
 
 export const deleteMedication = async (id: string): Promise<boolean> => {
@@ -83,20 +110,45 @@ export async function getDoseHistory(): Promise<DoseHistory[]> {
 }
 
 export async function recordDose(
-    medicationId: string,
-    taken: boolean,
-    timestamp: string = new Date().toISOString(),
-  ): Promise<void> {
+  medicationId: string, 
+  taken: boolean,
+  timestamp: string = new Date().toISOString(),
+): Promise<boolean> {
+  try {
     const history = await getDoseHistory();
+    const meds = await getMedication();
+    const medication = meds.find(m => m.id === medicationId);
+    
+    if (!medication) {
+      console.error('Medication not found');
+      return false;
+    }
+
+    // Only decrement if dose was taken
+    if (taken) {
+      if (medication.medicationType === 'pill-count') {
+        medication.currentPills = Math.max(0, medication.currentPills! - (medication.pillsPerDose || 1));
+      } else {
+        medication.currentDose = Math.max(0, medication.currentDose! - (medication.dosePerTake || 0));
+      }
+      await updateMedication(medication);
+    }
+
     history.unshift({
-        id: uuidv4(),
-        medicationId,
-        timestamp,
-        taken,
-        notes: ''
+      id: uuidv4(),
+      medicationId,
+      timestamp,
+      taken,
+      notes: ''
     });
+    
     await AsyncStorage.setItem(DOSE_HISTORY_KEY, JSON.stringify(history));
+    return true;
+  } catch (error) {
+    console.error('Error recording dose:', error);
+    return false;
   }
+}
 
 export async function getTodaysDoses(): Promise<DoseHistory[]> {
   const today = new Date().toDateString();
@@ -104,6 +156,93 @@ export async function getTodaysDoses(): Promise<DoseHistory[]> {
     (d) => new Date(d.timestamp).toDateString() === today,
   );
 }
+
+/* ------------------------------------------------------------------ */
+/*  Supply management                                                 */
+/* ------------------------------------------------------------------ */
+
+export async function updateMedicationSupply(
+  medicationId: string,
+  newSupply: number,
+  type: 'pill-count' | 'dose-based' = 'pill-count'
+): Promise<boolean> {
+  try {
+    const meds = await getMedication();
+    const updated = meds.map(med => {
+      if (med.id === medicationId) {
+        if (type === 'pill-count') {
+          return { ...med, currentPills: newSupply };
+        } else {
+          return { ...med, currentDose: newSupply };
+        }
+      }
+      return med;
+    });
+    await AsyncStorage.setItem(MEDICATION_KEY, JSON.stringify(updated));
+    return true;
+  } catch (e) {
+    console.error('Error updating supply:', e);
+    return false;
+  }
+}
+
+export async function refillMedication(
+  medicationId: string,
+  quantity: number,
+  type: 'pill-count' | 'dose' = 'pill-count'
+): Promise<boolean> {
+  try {
+    const meds = await getMedication();
+    const updated = meds.map(med => {
+      if (med.id === medicationId) {
+        const now = new Date().toISOString();
+        
+        if (type === 'pill-count' || med.medicationType === 'pill-count') {
+          return { 
+            ...med, 
+            currentPills: (med.currentPills || 0) + quantity,
+            lastRefillDate: now
+          };
+        } else {
+          return { 
+            ...med, 
+            currentDose: (med.currentDose || 0) + quantity,
+            lastRefillDate: now
+          };
+        }
+      }
+      return med;
+    });
+    await AsyncStorage.setItem(MEDICATION_KEY, JSON.stringify(updated));
+    return true;
+  } catch (e) {
+    console.error('Error refilling medication:', e);
+    return false;
+  }
+}
+
+export async function clearMedicationNotification(medicationId: string): Promise<boolean> {
+  try {
+    const medications = await getMedication();
+    const updated = medications.map(m => {
+      if (m.id === medicationId) {
+        return {
+          ...m,
+          reminderEnabled: false, // Disable reminders for this medication
+        };
+      }
+      return m;
+    });
+    
+    // Use the correct MEDICATION_KEY constant
+    await AsyncStorage.setItem(MEDICATION_KEY, JSON.stringify(updated));
+    return true;
+  } catch (e) {
+    console.error('Error clearing notification:', e);
+    return false;
+  }
+}
+
 
 /* ------------------------------------------------------------------ */
 /*  Utilities                                                         */

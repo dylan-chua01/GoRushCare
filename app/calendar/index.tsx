@@ -7,9 +7,17 @@ import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+// Add this interface to define your route params
+interface CalendarScreenParams {
+  refresh?: string | number;
+}
+
 export default function CalendarScreen() {
     const router = useRouter();
-    const { refresh } = router.params || {};
+    // Properly type the params
+    const params = router.params as CalendarScreenParams;
+    const refresh = params?.refresh;
+    
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [medications, setMedications] = useState<Medication[]>([]);
     const [doseHistory, setDoseHistory] = useState<DoseHistory[]>([]);
@@ -166,10 +174,8 @@ export default function CalendarScreen() {
                     ]} />
                     <View style={styles.medicationInfo}>
                         <Text style={styles.medicationName}>{medication.name}</Text>
-                        <Text style={styles.medicationDosage}>{medication.dosage}</Text>
+                        
                         <View style={styles.timeContainer}>
-                            <Ionicons name="time-outline" size={16} color="#666" />
-                            <Text style={styles.medicationTime}>{times}</Text>
                         </View>
                     </View>
 
@@ -214,7 +220,7 @@ export default function CalendarScreen() {
         <View style={styles.container}>
             <LinearGradient
                 style={styles.headerGradient}
-                colors={["#1a8e2d", "#146922"]}
+                colors={["#e0e7f0", "#8ab4dc"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
             />
@@ -397,7 +403,7 @@ const styles = StyleSheet.create({
         fontWeight: '500',
     },
     today: {
-        backgroundColor: "#1a8e2d15",
+        backgroundColor: "#8ab4dc",
     },
     todayText: {
         color: "#1a8e2d",

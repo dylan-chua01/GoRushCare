@@ -1,7 +1,10 @@
+import { useRefillChecks } from '@/hook/useRefillChecks';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
 export default function RootLayout() {
+  useRefillChecks();
+  
   return (
     <>
       <StatusBar style='light' />

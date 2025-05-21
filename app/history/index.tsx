@@ -433,6 +433,7 @@ export default function HistoryScreen() {
         />
       </LinearGradient>
     </SafeAreaView>
+    
   );
 }
 

@@ -6,6 +6,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { Alert, Dimensions, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const { width } = Dimensions.get("window")
 
@@ -20,18 +21,24 @@ const DURATIONS = [
 export default function AddMedicationScreen() {
     const router = useRouter();
 
-    const [form, setForm] = useState({
-        name: "",
-        dosage: "",
-        duration: "",
-        startDate: new Date(),
-        times: [""],
-        notes:"",
-        reminderEnabled: true,
-        refillReminder: false,
-        currentSupply: "",
-        refillAt: "",
-    })
+    // Update your form state to include refill fields
+const [form, setForm] = useState({
+    name: "",
+    dosage: "",
+    duration: "",
+    startDate: new Date(),
+    times: [""],
+    notes: "",
+    reminderEnabled: true,
+    // Add these refill-related fields
+    medicationType: 'pill-count', // default
+    pillsPerDose: 1,
+    currentPills: '',
+    refillAtPills: '',
+    dosePerTake: '',
+    currentDose: '',
+    refillAtDose: '',
+  });
 
     const [errors, setErrors] = useState<{ [key: string]: string }>({});
     const [selectedDuration, setSelectedDuration] = useState("");
@@ -42,7 +49,7 @@ export default function AddMedicationScreen() {
 
     const renderDurationOptions = () => {
         return (
-            <View style={styles.optionsGrid}>
+            <SafeAreaView style={styles.optionsGrid}>
                 {DURATIONS.map((dur) => (
                     <TouchableOpacity
                         key={dur.id}
@@ -60,27 +67,51 @@ export default function AddMedicationScreen() {
                         </Text>
                     </TouchableOpacity>
                 ))}
-            </View>
+            </SafeAreaView>
         );
     }
 
     const validateForm = () => {
-        const newErrors: {[key: string]: string} = {};
-
-        if(!form.name.trim()){
-            newErrors.name = "Medication name is required";
+        const newErrors: { [key: string]: string } = {};
+      
+        if (!form.name.trim()) {
+          newErrors.name = "Medication name is required";
         }
-
-        if(!form.dosage.trim()){
-            newErrors.dosage = "Dosage is required";
+      
+        if (!form.dosage.trim()) {
+          newErrors.dosage = "Dosage is required";
         }
-
-        if(!form.duration.trim()){
-            newErrors.duration = "Duration is required";
+      
+        if (!form.duration.trim()) {
+          newErrors.duration = "Duration is required";
         }
+      
+        // Refill tracking validation
+        if (form.medicationType === "pill-count") {
+          if (!form.currentPills || isNaN(Number(form.currentPills))) {
+            newErrors.currentPills = "Current pill count must be a number";
+          }
+          if (!form.pillsPerDose || isNaN(Number(form.pillsPerDose))) {
+            newErrors.pillsPerDose = "Pills per dose must be a number";
+          }
+          if (!form.refillAtPills || isNaN(Number(form.refillAtPills))) {
+            newErrors.refillAtPills = "Refill threshold (pills) must be a number";
+          }
+        } else if (form.medicationType === "dose-based") {
+          if (!form.dosePerTake || isNaN(Number(form.dosePerTake))) {
+            newErrors.dosePerTake = "Dose per take must be a number";
+          }
+          if (!form.currentDose || isNaN(Number(form.currentDose))) {
+            newErrors.currentDose = "Current dose must be a number";
+          }
+          if (!form.refillAtDose || isNaN(Number(form.refillAtDose))) {
+            newErrors.refillAtDose = "Refill threshold (dose) must be a number";
+          }
+        }
+      
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
-    };
+      };
 
     const handleSave = async () => {
         try {
@@ -88,29 +119,40 @@ export default function AddMedicationScreen() {
                 Alert.alert("Error", "Please fill in all required fields to continue")
                 return;
             }
-
+    
             if(isSubmitting) return;
             setIsSubmitting(true);
-
+    
             const colors = ["#4caf50", "#2196F3", "#FF9800", "#E91E63", "#9C27B0", "#00BCD4"];
             const randomColor = colors[Math.floor(Math.random() * colors.length)];
-
+    
             const medicationData = {
                 id: Math.random().toString(36).substr(2, 9),
                 ...form,
-                currentSupply: form.currentSupply ? Number(form.currentSupply) : 0,
-                totalSupply: form.currentSupply ? Number(form.currentSupply) : 0,
-                refillAt: form.refillAt ? Number(form.refillAt) : 0,
                 startDate: form.startDate.toISOString(),
                 color: randomColor,
-            };
-
+                reminderEnabled: form.reminderEnabled,
+                // Normalize numerical fields based on medication type
+                ...(form.medicationType === "pill-count"
+                  ? {
+                      currentSupply: Number(form.currentPills),
+                      totalSupply: Number(form.currentPills),
+                      refillAt: Number(form.refillAtPills),
+                      pillsPerDose: Number(form.pillsPerDose),
+                    }
+                  : {
+                      dosePerTake: Number(form.dosePerTake),
+                      currentDose: Number(form.currentDose),
+                      refillAt: Number(form.refillAtDose),
+                    }),
+              };
+    
             await addMedication(medicationData);
             
             if(medicationData.reminderEnabled) {
                 await scheduleMedicationReminder(medicationData);
             }
-
+    
             Alert.alert(
                 "Success",
                 "Medication added successfully",
@@ -122,7 +164,7 @@ export default function AddMedicationScreen() {
                 ],
                 { cancelable: false }
             );
-
+    
         } catch (error) {
             console.error('Save error', error);
             Alert.alert(
@@ -135,11 +177,11 @@ export default function AddMedicationScreen() {
             setIsSubmitting(false);
         }
     }
-
+    
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container}>
             <LinearGradient
-                colors={["#1a8e2d", "#146922"]}
+                colors={["#e0e7f0", "#8ab4dc"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1}}
                 style={styles.headerGradient}
@@ -148,7 +190,7 @@ export default function AddMedicationScreen() {
             <View style={styles.content}>
                 <View style={styles.header}>
                     <TouchableOpacity style={styles.backButton} onPress={() => router.back()} >
-                        <Ionicons name="chevron-back" size={28} color={'#1a8e2d'} />
+                        <Ionicons name="chevron-back" size={28} color={'#bc1b2b'} />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>New Medication</Text>
                 </View>
@@ -161,6 +203,120 @@ export default function AddMedicationScreen() {
                     {/* Basic Information Section */}
                     <View style={styles.section}>
                         <Text style={styles.sectionHeader}>Basic Information</Text>
+
+                        <View style={styles.section}>
+  <Text style={styles.sectionHeader}>Medication Type</Text>
+  
+  <View style={styles.typeSelector}>
+    <TouchableOpacity
+      style={[
+        styles.typeOption,
+        form.medicationType === 'pill-count' && styles.typeOptionActive
+      ]}
+      onPress={() => setForm({...form, medicationType: 'pill-count'})}
+    >
+      <Ionicons 
+        name="medical" 
+        size={24} 
+        color={form.medicationType === 'pill-count' ? '#1a8e2d' : '#666'} 
+      />
+      <Text style={styles.typeOptionText}>Pill Count</Text>
+    </TouchableOpacity>
+    
+    <TouchableOpacity
+      style={[
+        styles.typeOption,
+        form.medicationType === 'dose-based' && styles.typeOptionActive
+      ]}
+      onPress={() => setForm({...form, medicationType: 'dose-based'})}
+    >
+      <Ionicons 
+        name="flask" 
+        size={24} 
+        color={form.medicationType === 'dose-based' ? '#1a8e2d' : '#666'} 
+      />
+      <Text style={styles.typeOptionText}>Dose Based</Text>
+    </TouchableOpacity>
+  </View>
+
+  {form.medicationType === 'pill-count' ? (
+    <>
+      <View style={styles.inputContainer}>
+        <Text style={styles.inputLabel}>Current Pill Count *</Text>
+        <TextInput
+          style={styles.mainInput}
+          placeholder="e.g. 30"
+          keyboardType="numeric"
+          value={form.currentPills}
+          onChangeText={(text) => setForm({...form, currentPills: text})}
+        />
+      </View>
+      <View style={styles.inputContainer}>
+        <Text style={styles.inputLabel}>Pills Per Dose *</Text>
+        <TextInput
+          style={styles.mainInput}
+          placeholder="e.g. 1"
+          keyboardType="numeric"
+          value={form.pillsPerDose.toString()}
+          onChangeText={(text) => setForm({...form, pillsPerDose: Number(text) || 1})}
+        />
+      </View>
+      <View style={styles.inputContainer}>
+        <Text style={styles.inputLabel}>Refill At (pill count) *</Text>
+        <TextInput
+          style={styles.mainInput}
+          placeholder="e.g. 7 (when 7 pills left)"
+          keyboardType="numeric"
+          value={form.refillAtPills}
+          onChangeText={(text) => setForm({...form, refillAtPills: text})}
+        />
+      </View>
+    </>
+  ) : (
+    <>
+      <View style={styles.inputContainer}>
+        <Text style={styles.inputLabel}>Total Dosage *</Text>
+        <TextInput
+          style={styles.mainInput}
+          placeholder="e.g. 200mg"
+          value={form.dosage}
+          onChangeText={(text) => setForm({...form, dosage: text})}
+        />
+      </View>
+      <View style={styles.inputContainer}>
+        <Text style={styles.inputLabel}>Dose Per Take *</Text>
+        <TextInput
+          style={styles.mainInput}
+          placeholder="e.g. 20 (in mg)"
+          keyboardType="numeric"
+          value={form.dosePerTake}
+          onChangeText={(text) => setForm({...form, dosePerTake: text})}
+        />
+      </View>
+      <View style={styles.inputContainer}>
+        <Text style={styles.inputLabel}>Current Dose Remaining *</Text>
+        <TextInput
+          style={styles.mainInput}
+          placeholder="e.g. 200 (in mg)"
+          keyboardType="numeric"
+          value={form.currentDose}
+          onChangeText={(text) => setForm({...form, currentDose: text})}
+        />
+      </View>
+      <View style={styles.inputContainer}>
+        <Text style={styles.inputLabel}>Refill At (mg remaining) *</Text>
+        <TextInput
+          style={styles.mainInput}
+          placeholder="e.g. 50 (when 50mg left)"
+          keyboardType="numeric"
+          value={form.refillAtDose}
+          onChangeText={(text) => setForm({...form, refillAtDose: text})}
+        />
+      </View>
+    </>
+  )}
+</View>
+
                         
                         <View style={styles.inputContainer}>
                             <Text style={styles.inputLabel}>Medication Name *</Text>
@@ -206,7 +362,7 @@ export default function AddMedicationScreen() {
                         <Text style={styles.sectionHeader}>Schedule</Text>
                         
 
-                        <Text style={styles.sectionSubtitle}>Duration *</Text>
+                        <Text style={[styles.sectionSubtitle]}>Duration *</Text>
                         {errors.duration && (
                             <Text style={styles.errorText}>{errors.duration}</Text>
                         )}
@@ -217,7 +373,7 @@ export default function AddMedicationScreen() {
                             onPress={() => setShowDatePicker(true)}
                         >
                             <View style={styles.dateIconContainer}>
-                                <Ionicons name="calendar" size={20} color="#1a8e2d" />
+                                <Ionicons name="calendar" size={20} color="#bc1b2b" />
                             </View>
                             <Text style={styles.dateButtonText}>
                                 Starts: {form.startDate.toLocaleDateString()}
@@ -269,7 +425,7 @@ export default function AddMedicationScreen() {
                             <View style={styles.switchRow}>
                                 <View style={styles.switchLabelContainer}>
                                     <View style={styles.iconContainer}>
-                                        <Ionicons name="notifications" size={24} color="#1a8e2d" />
+                                        <Ionicons name="notifications" size={24} color="#bc1b2b" />
                                     </View>
                                     <View>
                                         <Text style={styles.switchLabel}>Enable Reminders</Text>
@@ -288,6 +444,76 @@ export default function AddMedicationScreen() {
                         </View>
                     </View>
 
+                    {/* Refill Section */}
+                    <View style={styles.section}>
+    <Text style={styles.sectionHeader}>Refill Tracking</Text>
+    <View style={styles.card}>
+        <View style={styles.switchRow}>
+            <View style={styles.switchLabelContainer}>
+                <View style={styles.iconContainer}>
+                    <Ionicons name="repeat" size={24} color="#bc1b2b" />
+                </View>
+                <View>
+                    <Text style={styles.switchLabel}>Enable Refill Reminders</Text>
+                    <Text style={styles.switchSubLabel}>
+                        Get notified when your medication is running low
+                    </Text>
+                </View>
+            </View>
+            <Switch
+                value={form.refillReminder}
+                trackColor={{ false: '#ddd', true: '#1a8e2d' }}
+                thumbColor={'white'}
+                onValueChange={(value) => setForm({ ...form, refillReminder: value })}
+            />
+        </View>
+
+        {form.refillReminder && (
+            <View style={styles.refillFieldsContainer}>
+                <View style={styles.inputContainer}>
+                    <Text style={styles.inputLabel}>Current Supply (doses)</Text>
+                    <TextInput
+                        style={[styles.mainInput, errors.currentSupply && styles.inputError]}
+                        placeholder="e.g. 30"
+                        placeholderTextColor={'#999'}
+                        value={form.currentSupply}
+                        onChangeText={(text) => {
+                            setForm({...form, currentSupply: text})
+                            if(errors.currentSupply) {
+                                setErrors({...errors, currentSupply: ""})
+                            }
+                        }}
+                        keyboardType="numeric"
+                    />
+                    {errors.currentSupply && (
+                        <Text style={styles.errorText}>{errors.currentSupply}</Text>
+                    )}
+                </View>
+
+                <View style={styles.inputContainer}>
+                    <Text style={styles.inputLabel}>Refill Reminder At (doses remaining)</Text>
+                    <TextInput
+                        style={[styles.mainInput, errors.refillAt && styles.inputError]}
+                        placeholder="e.g. 7 (will remind when 7 doses left)"
+                        placeholderTextColor={'#999'}
+                        value={form.refillAt}
+                        onChangeText={(text) => {
+                            setForm({...form, refillAt: text})
+                            if(errors.refillAt) {
+                                setErrors({...errors, refillAt: ""})
+                            }
+                        }}
+                        keyboardType="numeric"
+                    />
+                    {errors.refillAt && (
+                        <Text style={styles.errorText}>{errors.refillAt}</Text>
+                    )}
+                </View>
+            </View>
+        )}
+    </View>
+</View>
+
                     {/* Notes Section */}
                     <View style={styles.section}>
                         <Text style={styles.sectionHeader}>Additional Notes</Text>
@@ -304,6 +530,8 @@ export default function AddMedicationScreen() {
                             />
                         </View>
                     </View>
+
+                    
                 </ScrollView>
 
                 {/* Footer with Action Buttons */}
@@ -317,7 +545,7 @@ export default function AddMedicationScreen() {
                         disabled={isSubmitting}
                     >
                         <LinearGradient
-                            colors={["#1a8e2d", "#146922"]}
+                            colors={["#F1D1D4", "#bc1b2b"]}
                             style={styles.saveButtonGradient}
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 0}}
@@ -337,7 +565,7 @@ export default function AddMedicationScreen() {
                     </TouchableOpacity>
                 </View>
             </View>
-        </View>
+        </SafeAreaView>
     )
 }
 
@@ -489,7 +717,7 @@ const styles = StyleSheet.create({
     durationNumber: {
         fontSize: 24,
         fontWeight: '700',
-        color: "#1a8e2d",
+        color: "#bc1b2b",
         marginBottom: 8,
     },
     selectedDurationNumber: {
@@ -666,4 +894,40 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: "600"
     },
+    refillFieldsContainer: {
+        marginTop: 16,
+    },
+    typeSelector: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  marginBottom: 20,
+},
+typeOption: {
+  flex: 1,
+  alignItems: 'center',
+  padding: 16,
+  borderRadius: 12,
+  borderWidth: 1,
+  borderColor: '#e0e0e0',
+  marginHorizontal: 8,
+},
+typeOptionActive: {
+  borderColor: '#bc1b2b',
+  backgroundColor: '#F1D1D4',
+},
+typeOptionText: {
+  marginTop: 8,
+  fontSize: 14,
+  fontWeight: '600',
+},
+supplyText: {
+  fontSize: 14,
+  color: '#666',
+  marginTop: 4,
+},
+refillText: {
+  fontSize: 13,
+  color: '#888',
+  marginTop: 2,
+}
 })

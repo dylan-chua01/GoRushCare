@@ -1,6 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
-import { Medication } from './storage';
+import { Medication, getMedication } from './storage';
 
 // Set up notification handler with proper typing
 Notifications.setNotificationHandler({
@@ -142,3 +142,25 @@ export async function presentLocalNotification(
         trigger: null, // immediate
     });
 }
+
+export async function checkRefillReminders() {
+    const medications = await getMedication();
+    const now = new Date();
+    
+    for (const med of medications) {
+      if (med.refillReminder && med.currentSupply <= med.refillAt) {
+        await scheduleRefillNotification(med);
+      }
+    }
+  }
+  
+  async function scheduleRefillNotification(medication: Medication) {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "Time to Refill!",
+        body: `Your ${medication.name} is running low (${medication.currentSupply} doses left)`,
+        data: { medicationId: medication.id },
+      },
+      trigger: { seconds: 1 }, // Immediate notification
+    });
+  }
