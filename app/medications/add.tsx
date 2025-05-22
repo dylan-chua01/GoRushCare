@@ -193,12 +193,12 @@ const [form, setForm] = useState({
                 style={styles.headerGradient}
             />
             
-            <View style={styles.content}>
+            <View style={[styles.content]}>
                 <View style={styles.header}>
-                    <TouchableOpacity style={styles.backButton} onPress={() => router.back()} >
+                    <TouchableOpacity style={[styles.backButton]} onPress={() => router.back()} >
                         <Ionicons name="chevron-back" size={28} color={'#bc1b2b'} />
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>New Medication</Text>
+                    <Text style={[styles.headerTitle]}>New Medication</Text>
                 </View>
 
                 <ScrollView 
@@ -207,7 +207,7 @@ const [form, setForm] = useState({
                     contentContainerStyle={styles.formContentContainer}
                 >
                     {/* Basic Information Section */}
-                    <View style={styles.section}>
+                    <View style={[styles.section, {marginTop: 20}]}>
                         <Text style={styles.sectionHeader}>Basic Information</Text>
 
                         <View style={styles.section}>

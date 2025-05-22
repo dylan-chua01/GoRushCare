@@ -126,8 +126,21 @@ export async function recordDose(
       return false;
     }
 
-    // Only decrement if dose was taken AND it's for today or future
-    if (taken && new Date(timestamp) >= new Date(new Date().setHours(0, 0, 0, 0))) {
+    // Create the new dose record first
+    const newRecord = {
+      id: uuidv4(),
+      medicationId,
+      timestamp,
+      taken,
+      notes: ''
+    };
+
+    // Only decrement supply if it's for today or future
+    const doseDate = new Date(timestamp);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    if (taken && doseDate >= today) {
       if (medication.medicationType === 'pill-count') {
         medication.currentPills = Math.max(0, medication.currentPills! - (medication.pillsPerDose || 1));
       } else {
@@ -136,15 +149,7 @@ export async function recordDose(
       await updateMedication(medication);
     }
 
-    // Add the new dose record
-    const newRecord = {
-      id: uuidv4(),
-      medicationId,
-      timestamp,
-      taken,
-      notes: ''
-    };
-    
+    // Add the new record and save
     await AsyncStorage.setItem(DOSE_HISTORY_KEY, JSON.stringify([newRecord, ...history]));
     return true;
   } catch (error) {

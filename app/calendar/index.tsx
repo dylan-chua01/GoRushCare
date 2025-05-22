@@ -3,7 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
 import { JSX, useCallback, useEffect, useState } from "react";
-import { Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, AppState, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -22,19 +22,40 @@ export default function CalendarScreen() {
     const [medications, setMedications] = useState<Medication[]>([]);
     const [doseHistory, setDoseHistory] = useState<DoseHistory[]>([]);
     const [refreshKey, setRefreshKey] = useState(0);
+    const [forceUpdate, setForceUpdate] = useState(false);
+    const [appState, setAppState] = useState(AppState.currentState);
+
+    // Monitor app state changes
+    useEffect(() => {
+        const subscription = AppState.addEventListener('change', nextAppState => {
+            if (appState.match(/inactive|background/) && nextAppState === 'active') {
+                // App has come to the foreground - refresh data
+                console.log('App has come to the foreground - refreshing data');
+                loadData();
+            }
+            setAppState(nextAppState);
+        });
+
+        return () => {
+            subscription.remove();
+        };
+    }, [appState]);
 
     useEffect(() => {
         if (refresh) {
+            console.log('Refresh parameter detected, refreshing data');
             setRefreshKey(prev => prev + 1);
         }
     }, [refresh]);
 
     const loadData = useCallback(async () => {
+        console.log('Loading medication and dose history data');
         try {
             const [meds, history] = await Promise.all([
                 getMedication(),
                 getDoseHistory()
             ]);
+            console.log(`Loaded ${meds.length} medications and ${history.length} dose records`);
             setMedications(meds);
             setDoseHistory(history);
         } catch (error) {
@@ -45,8 +66,15 @@ export default function CalendarScreen() {
     useFocusEffect(
         useCallback(() => {
             loadData();
+            // Force a refresh when the screen comes into focus to ensure data is current
+            setForceUpdate(prev => !prev);
         }, [loadData])
     );
+    
+    // Add an effect to reload data when forceUpdate changes
+    useEffect(() => {
+        loadData();
+    }, [forceUpdate]);
 
       
 
@@ -92,7 +120,11 @@ export default function CalendarScreen() {
                         isSelected && styles.selectedDay,
                         hasDoses && styles.hasEvents,
                     ]}
-                    onPress={() => setSelectedDate(date)}
+                    onPress={() => {
+                        setSelectedDate(date);
+                        // Force refresh when selecting a new date
+                        setForceUpdate(prev => !prev);
+                    }}
                 >
                     <Text style={[
                         styles.dayText, 
@@ -119,6 +151,26 @@ export default function CalendarScreen() {
         return calendar;
     };
 
+    // Add a direct dose taking function for the calendar (alternative approach)
+    const takeDose = async (medicationId: string, date: Date) => {
+        try {
+            console.log(`Recording dose for medication ${medicationId} at ${date.toISOString()}`);
+            await recordDose(medicationId, true, date.toISOString());
+            console.log('Dose recorded successfully');
+            // Force immediate refresh
+            await loadData();
+            // Force rerender
+            setForceUpdate(prev => !prev);
+        } catch (error) {
+            console.error("Error recording dose:", error);
+            Alert.alert(
+                "Error",
+                "Failed to record dose. Please try again.",
+                [{ text: "OK" }]
+            );
+        }
+    };
+
     const renderMedicationsForDate = () => {
         const dateStr = selectedDate.toDateString();
         const todayStr = new Date().toDateString();
@@ -128,9 +180,9 @@ export default function CalendarScreen() {
 
         if (medications.length === 0) {
             return (
-                <View style={styles.emptyState}>
-                    <Ionicons name="calendar-outline" size={48} color="#ccc" />
-                    <Text style={styles.emptyStateText}>No medications scheduled</Text>
+                <View style={styles.completedState}>
+                    <Ionicons name="checkmark-circle" size={56} color="#4caf50" />
+                    <Text style={styles.completedStateText}>All medications taken for today!</Text>
                 </View>
             );
         }
@@ -146,9 +198,9 @@ export default function CalendarScreen() {
 
         if (activeMeds.length === 0) {
             return (
-                <View style={styles.emptyState}>
-                    <Ionicons name="medical-outline" size={48} color="#ccc" />
-                    <Text style={styles.emptyStateText}>No medications scheduled for this day</Text>
+                <View style={styles.completedState}>
+                    <Ionicons name="checkmark-circle" size={56} color="#4caf50" />
+                    <Text style={styles.completedStateText}>All medications taken for today!</Text>
                 </View>
             );
         }
@@ -187,26 +239,37 @@ export default function CalendarScreen() {
                         </View>
                     ) : (
                         <TouchableOpacity
-    style={[
-        styles.takeDoseButton,
-        { backgroundColor: medication.color },
-    ]}
-    onPress={async () => {
-        // Only record dose if it's today or future
-        if (selectedDate.toDateString() >= new Date().toDateString()) {
-            await recordDose(medication.id, true, selectedDate.toISOString());
-            loadData();
-        } else {
-            Alert.alert(
-                "Cannot Record Dose",
-                "You can only record doses for today or future dates",
-                [{ text: "OK" }]
-            );
-        }
-    }}
->
-    <Text style={styles.takeDoseText}>Take</Text>
-</TouchableOpacity>
+                            style={[
+                                styles.takeDoseButton,
+                                { backgroundColor: medication.color },
+                            ]}
+                            onPress={() => {
+                                // Check if it's today or future
+                                if (selectedDate.toDateString() >= new Date().toDateString()) {
+                                    // OPTION 1: Direct handling on calendar (more reliable but keeps user on calendar)
+                                    takeDose(medication.id, selectedDate);
+                                    
+                                    /* OPTION 2: Navigate to home screen (comment out if using Option 1)
+                                    router.push({
+                                        pathname: "/",
+                                        params: { 
+                                            medicationId: medication.id,
+                                            timestamp: selectedDate.toISOString(),
+                                            redirectSource: "calendar"
+                                        }
+                                    });
+                                    */
+                                } else {
+                                    Alert.alert(
+                                        "Cannot Record Dose",
+                                        "You can only record doses for today or future dates",
+                                        [{ text: "OK" }]
+                                    );
+                                }
+                            }}
+                        >
+                            <Text style={styles.takeDoseText}>Take</Text>
+                        </TouchableOpacity>
                     )}
                 </View>
             );
@@ -220,10 +283,14 @@ export default function CalendarScreen() {
             1
         );
         setSelectedDate(newDate);
+        // Force refresh when changing months
+        setForceUpdate(prev => !prev);
     };
 
     const goToToday = () => {
         setSelectedDate(new Date());
+        // Force refresh when going to today
+        setForceUpdate(prev => !prev);
     };
 
     return (
@@ -289,20 +356,6 @@ export default function CalendarScreen() {
                                 })
                             }
                         </Text>
-                        <Text style={styles.scheduleSubtitle}>
-                            {doseHistory.filter(d => new Date(d.timestamp).toDateString() === selectedDate.toDateString() && d.taken).length} of {
-                                medications.reduce((total, med) => {
-                                    const startDate = new Date(med.startDate);
-                                    const durationDays = med.duration === "Ongoing" ? Infinity : parseInt(med.duration.split(" ")[0]);
-                                    const endDate = new Date(startDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
-                                    
-                                    if (selectedDate >= startDate && selectedDate <= endDate) {
-                                        return total + med.times.length;
-                                    }
-                                    return total;
-                                }, 0)
-                            } doses taken
-                        </Text>
                     </View>
                     <ScrollView 
                         style={styles.medicationList}
@@ -315,7 +368,6 @@ export default function CalendarScreen() {
         </View>
     );
 }
-
 const styles = StyleSheet.create({
     container: {
         flex: 1,
@@ -544,5 +596,26 @@ const styles = StyleSheet.create({
         color: '#999',
         marginTop: 16,
         textAlign: 'center',
-    }
+    },
+    completedState: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#e8f5e9', // Soft green background
+        padding: 24,
+        margin: 16,
+        borderRadius: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 5,
+      },
+      completedStateText: {
+        marginTop: 16,
+        fontSize: 20,
+        fontWeight: '600',
+        color: '#2e7d32', // Dark green for contrast
+        textAlign: 'center',
+      },
 });

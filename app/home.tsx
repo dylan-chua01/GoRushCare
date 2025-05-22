@@ -11,7 +11,6 @@ import {
     Animated,
     AppState,
     Dimensions,
-    Linking,
     Modal,
     ScrollView,
     StyleSheet,
@@ -52,7 +51,14 @@ const QUICK_ACTIONS = [
         route: "/refill" as const,
         color: "#e64a19",
         gradient: ["#ff5722", "#e64a19"] as [string, string],
-    }
+    },
+    {
+        icon: "cart-outline" as const,
+        label: "Order\nMedication",
+        route: "/order-form" as const,
+        color: "#5D4037",
+        gradient: ["#8D6E63", "#5D4037"] as [string, string],
+      }
 ]
 
 interface CircularProgressProps{
@@ -275,6 +281,8 @@ export default function HomeScreen() {
     )
 
     const handleTakeDose = async (medication: Medication) => {
+
+        
         try {
             await recordDose(medication.id, true, new Date().toISOString());
             await loadMedications()
@@ -422,10 +430,14 @@ export default function HomeScreen() {
       style={styles.companyLogo} 
       resizeMode="contain"
     />
-    <TouchableOpacity 
+    {/* <TouchableOpacity 
       style={styles.orderButton}
       onPress={() => Linking.openURL('https://www.gorushbn.com/order-form')}
-    >
+    > */}
+    <TouchableOpacity 
+  style={styles.orderButton}
+  onPress={() => router.push('/order-form')}
+>
       <Text style={styles.orderButtonText}>Go to Order Form</Text>
     </TouchableOpacity>
   </View>
