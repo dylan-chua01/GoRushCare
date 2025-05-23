@@ -1,16 +1,17 @@
 import { Picker } from "@react-native-picker/picker";
 import { useNavigation } from "@react-navigation/native";
+import { router } from "expo-router";
 import React, { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import {
   ActivityIndicator,
   Alert,
-  Button,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  View,
+  TouchableOpacity,
+  View
 } from "react-native";
 
 const PharmacyForm = () => {
@@ -58,7 +59,7 @@ const PharmacyForm = () => {
       setLoading(true);
       await sendEmailJS(data);
       setLoading(false);
-      navigation.navigate("ThankYouScreen"); // ✅ Redirect after success
+      router.push("/thank-you"); // ✅ Redirect after success
     } catch (error) {
       setLoading(false);
       Alert.alert("Error", "Failed to send the form. Please try again.");
@@ -67,7 +68,7 @@ const PharmacyForm = () => {
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={[styles.container, { marginTop: 50}]}>
       <Text style={styles.title}>Pharmacy Form</Text>
       <FormLabel text="Full Name" />
 <FormInput name="fullName" control={control} placeholder="Your full name" />
@@ -224,12 +225,50 @@ const PharmacyForm = () => {
       <Text style={styles.info}>Go Rush Express via Baiduri : 02-00-116-484129</Text>
 
       <View style={styles.submitBtn}>
-        {loading ? (
-          <ActivityIndicator size="large" color="#007bff" />
-        ) : (
-          <Button title="Submit" onPress={handleSubmit(onSubmit)} />
-        )}
+      {loading ? (
+  <View style={{ alignItems: 'center', marginVertical: 20 }}>
+    <ActivityIndicator size="large" color="#007bff" />
+  </View>
+) : (
+  <TouchableOpacity
+    style={{
+      backgroundColor: '#007bff',
+      paddingVertical: 14,
+      paddingHorizontal: 25,
+      borderRadius: 8,
+      alignItems: 'center',
+      marginVertical: 20,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.2,
+      shadowRadius: 3,
+      elevation: 3,
+    }}
+    onPress={handleSubmit(onSubmit)}
+  >
+    <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Order Now</Text>
+  </TouchableOpacity>
+)}
       </View>
+
+      <TouchableOpacity
+  style={{
+    backgroundColor: '#dc3545', // Bootstrap danger red
+    paddingVertical: 14,
+    paddingHorizontal: 25,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+  }}
+  onPress={() => router.push('/home')} // Make sure "home" matches your route name
+>
+  <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Cancel Order</Text>
+</TouchableOpacity>
     </ScrollView>
   );
 };
@@ -270,7 +309,8 @@ const FormPicker = ({ name, control, defaultValue = "No" }) => (
 const styles = StyleSheet.create({
   container: {
     padding: 20,
-    backgroundColor: "#f8f8f8",
+    backgroundColor: "white",
+    height: "auto"
   },
   title: {
     fontSize: 22,
@@ -285,7 +325,7 @@ const styles = StyleSheet.create({
   input: {
     backgroundColor: "white",
     borderWidth: 1,
-    borderColor: "#ddd",
+    borderColor: "#0484d5",
     padding: 10,
     borderRadius: 8,
     marginTop: 4,
@@ -293,7 +333,7 @@ const styles = StyleSheet.create({
   picker: {
     backgroundColor: "white",
     borderWidth: 1,
-    borderColor: "#ccc",
+    borderColor: "#0484d5",
     marginTop: 4,
     borderRadius: 8,
   },
@@ -309,14 +349,14 @@ const styles = StyleSheet.create({
   },
   submitBtn: {
     marginTop: 20,
-    marginBottom: 30,
+    marginBottom: 0,
   },
 });
 
 // You already have this function
 function generateHtmlFromForm(data: any): string {
   return `
-    <h2>Pharmacy Form Submission</h2>
+    <h2>Pharmacy Form Submission ${data.fullName}</h2>
     <p><strong>Pharmacy:</strong> ${data.pharmacy}</p>
     <p><strong>Full Name:</strong> ${data.fullName}</p>
     <p><strong>House / Unit No:</strong> ${data.houseNumber}</p>

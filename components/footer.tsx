@@ -1,10 +1,16 @@
-import { Entypo, FontAwesome } from '@expo/vector-icons';
+import { Entypo, FontAwesome, Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const Footer = () => {
   const openLink = (url: string) => {
     Linking.openURL(url).catch(err => console.error("Couldn't load page", err));
+  };
+
+  const callPhone = () => {
+    Linking.openURL('tel:+6732332065').catch(err =>
+      console.error("Couldn't make the call", err)
+    );
   };
 
   return (
@@ -19,6 +25,9 @@ const Footer = () => {
         </TouchableOpacity>
         <TouchableOpacity onPress={() => openLink('https://www.facebook.com/go.rush.bwn/')}>
           <Entypo name="facebook" size={24} color="#4267B2" />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={callPhone}>
+          <Ionicons name="call" size={24} color="#007AFF" />
         </TouchableOpacity>
       </View>
     </View>
@@ -45,4 +54,3 @@ const styles = StyleSheet.create({
 });
 
 export default Footer;
-

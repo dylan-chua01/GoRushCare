@@ -55,9 +55,16 @@ const QUICK_ACTIONS = [
     {
         icon: "cart-outline" as const,
         label: "Order\nMedication",
-        route: "/order-form" as const,
+        route: "/faq" as const,
         color: "#5D4037",
         gradient: ["#8D6E63", "#5D4037"] as [string, string],
+      },
+      {
+        icon: "help-circle-outline" as const,
+        label: "Pharmacy\nFAQ",
+        route: "/faq" as const,
+        color: "#1565C0",
+        gradient: ["#42A5F5", "#1565C0"] as [string, string],
       }
 ]
 
