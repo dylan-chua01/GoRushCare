@@ -55,7 +55,7 @@ const QUICK_ACTIONS = [
     {
         icon: "cart-outline" as const,
         label: "Order\nMedication",
-        route: "/faq" as const,
+        route: "/order-form" as const,
         color: "#5D4037",
         gradient: ["#8D6E63", "#5D4037"] as [string, string],
       },
@@ -65,7 +65,7 @@ const QUICK_ACTIONS = [
         route: "/faq" as const,
         color: "#1565C0",
         gradient: ["#42A5F5", "#1565C0"] as [string, string],
-      }
+      },
 ]
 
 interface CircularProgressProps{
