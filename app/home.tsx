@@ -66,6 +66,20 @@ const QUICK_ACTIONS = [
         color: "#1565C0",
         gradient: ["#42A5F5", "#1565C0"] as [string, string],
       },
+      {
+        icon: "analytics-outline" as const,
+        label: "Status\nTracker",
+        route: "/remaining-tracker" as const,
+        color: "#00695C",
+        gradient: ["#26A69A", "#00695C"] as [string, string],
+      },
+      {
+        icon: "chatbubble-ellipses-outline" as const,
+        label: "Quick\nHelp",
+        route: "https://www.chatbase.co/chatbot-iframe/n-miXqjuhoM3URyV-eEgN" as const,
+        color: "#004D40",
+        gradient: ["#7E57C2", "#5E35B1"] as [string, string],
+      }
 ]
 
 interface CircularProgressProps{
@@ -142,6 +156,8 @@ export default function HomeScreen() {
     const [showNotifications, setShowNotifications] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [medToDelete, setMedToDelete] = useState<string | null>(null);
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const rotateAnim = useRef(new Animated.Value(0)).current;
     const [needsRefill, setNeedsRefill] = useState(0);
     const [notifications, setNotifications] = useState([
         { id: 1, message: 'Time to refill your meds!', read: false },
@@ -315,6 +331,7 @@ export default function HomeScreen() {
                 <View style={styles.headerContent}>
 
                     <View style={styles.headerTop}>
+                        <View style={styles.headerIcons}>
 
                         <View style={{ flex: 1}}>
 
@@ -334,6 +351,7 @@ export default function HomeScreen() {
                         )}
                         
                         </TouchableOpacity>
+                    </View>
                     </View>
 
                     
@@ -967,4 +985,15 @@ doseText: {
     shadowRadius: 4,
     elevation: 5
     },
+
+headerIcons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  refreshButton: {
+    padding: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 12,
+  },
 })

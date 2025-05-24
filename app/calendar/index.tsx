@@ -14,67 +14,54 @@ interface CalendarScreenParams {
 
 export default function CalendarScreen() {
     const router = useRouter();
-    // Properly type the params
     const params = router.params as CalendarScreenParams;
     const refresh = params?.refresh;
-    
+  
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [medications, setMedications] = useState<Medication[]>([]);
     const [doseHistory, setDoseHistory] = useState<DoseHistory[]>([]);
     const [refreshKey, setRefreshKey] = useState(0);
     const [forceUpdate, setForceUpdate] = useState(false);
     const [appState, setAppState] = useState(AppState.currentState);
-
-    // Monitor app state changes
+  
     useEffect(() => {
-        const subscription = AppState.addEventListener('change', nextAppState => {
-            if (appState.match(/inactive|background/) && nextAppState === 'active') {
-                // App has come to the foreground - refresh data
-                console.log('App has come to the foreground - refreshing data');
-                loadData();
-            }
-            setAppState(nextAppState);
-        });
-
-        return () => {
-            subscription.remove();
-        };
+      const subscription = AppState.addEventListener('change', nextAppState => {
+        if (appState.match(/inactive|background/) && nextAppState === 'active') {
+          loadData();
+        }
+        setAppState(nextAppState);
+      });
+      return () => subscription.remove();
     }, [appState]);
-
+  
     useEffect(() => {
-        if (refresh) {
-            console.log('Refresh parameter detected, refreshing data');
-            setRefreshKey(prev => prev + 1);
-        }
+      if (refresh) setRefreshKey(prev => prev + 1);
     }, [refresh]);
-
+  
     const loadData = useCallback(async () => {
-        console.log('Loading medication and dose history data');
-        try {
-            const [meds, history] = await Promise.all([
-                getMedication(),
-                getDoseHistory()
-            ]);
-            console.log(`Loaded ${meds.length} medications and ${history.length} dose records`);
-            setMedications(meds);
-            setDoseHistory(history);
-        } catch (error) {
-            console.error("Error loading data:", error);
-        }
-    }, [refreshKey]); // Add refreshKey as dependency
-
+      try {
+        const [meds, history] = await Promise.all([
+          getMedication(),
+          getDoseHistory()
+        ]);
+        setMedications(meds);
+        setDoseHistory(history);
+      } catch (error) {
+        console.error("Error loading data:", error);
+      }
+    }, [refreshKey]);
+  
     useFocusEffect(
-        useCallback(() => {
-            loadData();
-            // Force a refresh when the screen comes into focus to ensure data is current
-            setForceUpdate(prev => !prev);
-        }, [loadData])
-    );
-    
-    // Add an effect to reload data when forceUpdate changes
-    useEffect(() => {
+      useCallback(() => {
         loadData();
+        setForceUpdate(prev => !prev);
+      }, [loadData])
+    );
+  
+    useEffect(() => {
+      loadData();
     }, [forceUpdate]);
+  
 
       
 
@@ -249,16 +236,6 @@ export default function CalendarScreen() {
                                     // OPTION 1: Direct handling on calendar (more reliable but keeps user on calendar)
                                     takeDose(medication.id, selectedDate);
                                     
-                                    /* OPTION 2: Navigate to home screen (comment out if using Option 1)
-                                    router.push({
-                                        pathname: "/",
-                                        params: { 
-                                            medicationId: medication.id,
-                                            timestamp: selectedDate.toISOString(),
-                                            redirectSource: "calendar"
-                                        }
-                                    });
-                                    */
                                 } else {
                                     Alert.alert(
                                         "Cannot Record Dose",

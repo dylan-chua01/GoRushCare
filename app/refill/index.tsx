@@ -6,7 +6,6 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
-  Linking,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -258,7 +257,7 @@ const RefillScreen: React.FC<RefillScreenProps> = () => {
     </TouchableOpacity>
     <TouchableOpacity 
       style={styles.refillButton}
-      onPress={() => Linking.openURL('https://www.gorushbn.com/order-form')}
+      onPress={() => router.push('/order-form')}
       accessibilityLabel={`Order ${med.name}`}
     >
       <View style={styles.refillButtonContent}>
